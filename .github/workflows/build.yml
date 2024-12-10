@@ -2,14 +2,13 @@ name: Build
 
 on:
   push:
-    branches: [ nextgen ]
+    branches: [ api-rewrite-test ]
   pull_request:
     branches: [ nextgen ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/nextgen'
     steps:
       - name: Checkout repository and submodules
         uses: actions/checkout@v4
@@ -66,7 +65,7 @@ jobs:
             -F "fabric_api_version=$FABRICAPI_VERSION" \
             -F "kotlin_version=$KOTLIN_VERSION" \
             -F "fabric_kotlin_version=$FABRIC_KOTLIN_VERSION" \
-            https://api.liquidbounce.net/api/v1/version/new
+            https://api-testing.liquidbounce.net/api/v1/version
 
   verify-pr:
     runs-on: ubuntu-latest
