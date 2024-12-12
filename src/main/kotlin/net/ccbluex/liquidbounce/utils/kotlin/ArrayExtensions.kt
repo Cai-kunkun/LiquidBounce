@@ -157,3 +157,10 @@ inline fun <T, K : Comparable<K>> MutableList<T>.sortedInsert(item: T, crossinli
 
     add(insertIndex, item)
 }
+
+inline fun <T> MutableList<T>.swap(alpha: Int, beta: Int){
+    val tmp = this[alpha]
+
+    this[alpha] = this[beta]
+    this[beta] = tmp
+}

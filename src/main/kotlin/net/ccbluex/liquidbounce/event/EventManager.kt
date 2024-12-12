@@ -22,7 +22,7 @@ import net.ccbluex.liquidbounce.event.events.*
 import net.ccbluex.liquidbounce.utils.client.EventScheduler
 import net.ccbluex.liquidbounce.utils.client.logger
 import net.ccbluex.liquidbounce.utils.kotlin.sortedInsert
-import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.reflect.KClass
 
 /**
@@ -136,16 +136,172 @@ val ALL_EVENT_CLASSES: Array<KClass<out Event>> = arrayOf(
     QueuePacketEvent::class
 )
 
+
+/**
+ * Bad name, ik. This class contains all handlers of a given event and keeps track of which of them should be called.
+ */
+class HookListManager<T : Event> {
+    private val hookList = AtomicReference(HookList<T>(emptyList(), 0))
+
+    val containedHooks: List<EventHook<T>>
+        get() = hookList.get().containedHooks
+
+    val containedActiveHooks: List<EventHook<T>>
+        get() = hookList.get().containedActiveHooks
+
+    /**
+     * Generates a new inner state with [f]. Tries to insert a new inner state. If another thread did a change in that
+     * time the process repeats (compare and swap)
+     *
+     * @param f Can be called multiple times. May not have side effects!
+     */
+    private inline fun editWith(crossinline f: (HookList<T>) -> HookList<T>) {
+        this.hookList.updateAndGet {
+            f(it)
+        }
+    }
+
+    /**
+     * Registers the given hook. Activates the hook if it's event listener says it should resume
+     * [EventListener.shouldBeOnHookList]
+     */
+    fun registerHook(hook: EventHook<T>) {
+        if (hook.handlerClass.shouldBeOnHookList()) {
+            this.editWith { hookList ->
+                hookList.withHandler(hook).withActivatedHandler(hook)
+            }
+        } else {
+            this.editWith { hookList ->
+                hookList.withHandler(hook)
+            }
+        }
+    }
+
+    fun unregisterHook(hook: EventHook<T>) {
+        this.editWith { hookList ->
+            hookList.withDeactivatedHandler(hook, unregister = true)
+        }
+    }
+
+    fun suspendHook(hook: EventHook<T>) {
+        this.editWith { hookList ->
+            hookList.withDeactivatedHandler(hook, unregister = false)
+        }
+    }
+
+    fun resumeHook(hook: EventHook<T>) {
+        this.editWith { hookList ->
+            hookList.withActivatedHandler(hook)
+        }
+    }
+
+    fun clear() {
+        this.editWith {
+            HookList(emptyList(), 0)
+        }
+    }
+
+    /**
+     * An *immutable* structure which keeps track of the *current* status of which events listen and not listen to an
+     * event.
+     */
+    private class HookList<T : Event>(
+        /**
+         * All hooks of the event. Contains active *and* inactive hooks.
+         */
+        val containedHooks: List<EventHook<in T>>,
+        /**
+         * The first [activeLen] hooks of the [containedHooks] list are actually active
+         */
+        val activeLen: Int
+    ) {
+        val containedActiveHooks: List<EventHook<T>>
+            get() = this.containedHooks.subList(0, this.activeLen)
+
+        /**
+         * Returns a new instance with [hook]. The event hook is **NOT** automatically activated!
+         */
+        fun withHandler(hook: EventHook<T>): HookList<T> {
+            check(hook !in containedHooks) { "The hook $hook is already registered!" }
+
+            return HookList(this.containedHooks + listOf(hook), this.activeLen)
+        }
+
+        fun withActivatedHandler(hook: EventHook<T>): HookList<T> {
+            val idxOf = this.indexOfHook(hook)
+
+            if (idxOf < this.activeLen) {
+                // The event is already active, nothing to do here.
+                return this
+            }
+
+            val newContainedEvents = containedHooks.toMutableList()
+
+            newContainedEvents.removeAt(idxOf)
+
+            // The range from 0 to activeLen contains all active events
+            val subListOfActiveEvents = newContainedEvents.subList(0, this.activeLen)
+
+            // Now insert it at the position it should be.
+            subListOfActiveEvents.sortedInsert(hook) { -it.priority }
+
+            // There is a new active member in the list
+            val newActiveLen = this.activeLen + 1
+
+            return HookList(newContainedEvents, newActiveLen)
+        }
+
+        /**
+         * @param unregister removes the [hook] entirely from the hook list.
+         */
+        fun withDeactivatedHandler(hook: EventHook<T>, unregister: Boolean = false): HookList<T> {
+            val idxOf = this.indexOfHook(hook)
+
+            val wasActive = idxOf < this.activeLen
+            val newContainedHooks = containedHooks.toMutableList()
+
+            val removedHook = newContainedHooks.removeAt(idxOf)
+
+            val newActiveLen = if (wasActive) this.activeLen - 1 else this.activeLen
+
+            if (!unregister) {
+                newContainedHooks.add(removedHook)
+            }
+
+            return if (unregister || wasActive) {
+                HookList(newContainedHooks, newActiveLen)
+            } else {
+                // No event was unregistered or deactivated, nothing changed
+                this
+            }
+        }
+
+        private fun indexOfHook(hook: EventHook<T>): Int {
+            val idxOf = this.containedHooks.indexOf(hook)
+
+            check(idxOf != -1) { "The event hook $hook is not part of the hook list for the event!" }
+
+            return idxOf
+        }
+    }
+}
+
 /**
  * A modern and fast event handler using lambda handlers
  */
 object EventManager {
 
-    private val registry: Map<Class<out Event>, CopyOnWriteArrayList<EventHook<in Event>>> =
-        ALL_EVENT_CLASSES.associate { Pair(it.java, CopyOnWriteArrayList()) }
+    private val registry: Map<Class<out Event>, HookListManager<Event>> =
+        ALL_EVENT_CLASSES.associate { Pair(it.java, HookListManager()) }
 
     init {
-        SequenceManager
+        kotlin.runCatching {
+            SequenceManager
+        }.onFailure {
+            it.printStackTrace()
+
+            throw it
+        }
     }
 
     /**
@@ -155,13 +311,9 @@ object EventManager {
         val handlers = registry[eventClass]
             ?: error("The event '${eventClass.name}' is not registered in Events.kt::ALL_EVENT_CLASSES.")
 
-        @Suppress("UNCHECKED_CAST")
-        val hook = eventHook as EventHook<in Event>
+        check(eventHook.handlerClass.parent()?.children()?.contains(eventHook.handlerClass) != false) { "The event listener ${eventHook.handlerClass} has ${eventHook.handlerClass.parent()} as a parent, but it does not reference it as a child!" }
 
-        if (!handlers.contains(hook)) {
-            // `handlers` is sorted descending by EventHook.priority
-            handlers.sortedInsert(hook) { -it.priority }
-        }
+        handlers.registerHook(eventHook as EventHook<Event>)
 
         return eventHook
     }
@@ -170,19 +322,42 @@ object EventManager {
      * Unregisters a handler.
      */
     fun <T : Event> unregisterEventHook(eventClass: Class<out Event>, eventHook: EventHook<T>) {
-        registry[eventClass]?.remove(eventHook as EventHook<in Event>)
+        registry[eventClass]?.unregisterHook(eventHook as EventHook<in Event>)
     }
 
-    /**
-     * Unregisters event handlers.
-     */
-    fun unregisterEventHooks(eventClass: Class<out Event>, hooks: Collection<EventHook<in Event>>) {
-        registry[eventClass]?.removeAll(hooks.toHashSet())
+    fun <T : Event> resumeEventHook(eventClass: Class<out Event>, eventHook: EventHook<T>) {
+        registry[eventClass]?.resumeHook(eventHook as EventHook<in Event>)
+    }
+
+    fun <T : Event> suspendEventHook(eventClass: Class<out Event>, eventHook: EventHook<T>) {
+        registry[eventClass]?.suspendHook(eventHook as EventHook<in Event>)
+    }
+
+    private fun forEachHookOf(eventListener: EventListener, f: (HookListManager<*>, EventHook<Event>) -> Unit) {
+        registry.values.forEach { hookList ->
+            hookList.containedHooks
+                .filter { it.handlerClass == eventListener }
+                .forEach {
+                    f(hookList, it)
+                }
+        }
     }
 
     fun unregisterEventHandler(eventListener: EventListener) {
-        registry.values.forEach {
-            it.removeIf { it.handlerClass == eventListener }
+        forEachHookOf(eventListener) { hookList, hook ->
+            hookList.unregisterHook(hook)
+        }
+    }
+
+    fun resumeEventHandler(eventListener: EventListener) {
+        forEachHookOf(eventListener) { hookList, hook ->
+            hookList.resumeHook(hook)
+        }
+    }
+
+    fun suspendEventHandler(eventListener: EventListener) {
+        forEachHookOf(eventListener) { hookList, hook ->
+            hookList.suspendHook(hook)
         }
     }
 
@@ -200,7 +375,7 @@ object EventManager {
     fun <T : Event> callEvent(event: T): T {
         val target = registry[event.javaClass] ?: return event
 
-        for (eventHook in target) {
+        for (eventHook in target.containedActiveHooks) {
             EventScheduler.process(event)
 
             if (!eventHook.ignoreNotRunning && !eventHook.handlerClass.running) {

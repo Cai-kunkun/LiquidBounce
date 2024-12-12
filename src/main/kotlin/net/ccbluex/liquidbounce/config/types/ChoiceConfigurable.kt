@@ -49,14 +49,15 @@ class ChoiceConfigurable<T : Choice>(
 
     fun newState(state: Boolean) {
         if (state) {
-            this.activeChoice.enable()
+            enableActive()
         } else {
-            this.activeChoice.disable()
+            disableActive()
         }
 
         inner.filterIsInstance<ChoiceConfigurable<*>>().forEach { it.newState(state) }
         inner.filterIsInstance<ToggleableConfigurable>().forEach { it.newState(state) }
     }
+
 
     override fun setByString(name: String) {
         val newChoice = choices.firstOrNull { it.choiceName == name }
@@ -71,7 +72,7 @@ class ChoiceConfigurable<T : Choice>(
         }
 
         if (this.activeChoice.running) {
-            this.activeChoice.disable()
+            disableActive()
         }
 
         // Don't remove this! This is important. We need to call the listeners of the choice in order to update
@@ -82,8 +83,17 @@ class ChoiceConfigurable<T : Choice>(
         })
 
         if (this.activeChoice.running) {
-            this.activeChoice.enable()
+            enableActive()
         }
+    }
+
+    fun enableActive() {
+        this.activeChoice.enable()
+        this.activeChoice.attemptResumeEvents()
+    }
+    fun disableActive() {
+        this.activeChoice.disable()
+        this.activeChoice.suspendEvents()
     }
 
     override fun restore() {
@@ -92,7 +102,7 @@ class ChoiceConfigurable<T : Choice>(
         }
 
         if (this.activeChoice.running) {
-            this.activeChoice.disable()
+            disableActive()
         }
 
         set(mutableListOf(defaultChoice), apply = {
@@ -100,7 +110,7 @@ class ChoiceConfigurable<T : Choice>(
         })
 
         if (this.activeChoice.running) {
-            this.activeChoice.enable()
+            enableActive()
         }
     }
 
@@ -122,6 +132,11 @@ abstract class Choice(name: String) : Configurable(name), EventListener, NamedCh
     open fun enable() { }
 
     open fun disable() { }
+
+    override fun shouldBeOnHookList(): Boolean {
+        // this.parent can be null during construction.
+        return this.parent != null && this.isSelected && parent.eventListener.shouldBeOnHookList()
+    }
 
     /**
      * Check if the choice is selected on the parent.

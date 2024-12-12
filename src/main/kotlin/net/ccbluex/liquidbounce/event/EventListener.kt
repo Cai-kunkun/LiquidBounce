@@ -23,7 +23,7 @@ import net.ccbluex.liquidbounce.features.misc.HideAppearance.isDestructed
 
 typealias Handler<T> = (T) -> Unit
 
-class EventHook<T : Event>(
+class EventHook<in T : Event>(
     val handlerClass: EventListener,
     val handler: Handler<T>,
     val ignoreNotRunning: Boolean,
@@ -54,6 +54,14 @@ interface EventListener {
      */
     fun children(): List<EventListener> = emptyList()
 
+    private fun forSelfAndChildren(f: (EventListener) -> Unit) {
+        f(this)
+
+        for (child in children()) {
+            f(child)
+        }
+    }
+
     /**
      * Unregisters the event handler from the manager. This decision is FINAL!
      * After the class was unregistered we cannot restore the handlers.
@@ -65,6 +73,33 @@ interface EventListener {
             child.unregister()
         }
     }
+
+    fun suspendEvents() {
+        EventManager.suspendEventHandler(this)
+
+        for (child in children()) {
+            child.suspendEvents()
+        }
+    }
+
+    /**
+     * Called when an event is triggered which could cause a resume of the event listener.
+     *
+     * The event handler is only actually resumed if [shouldBeOnHookList] yields true!
+     */
+    fun attemptResumeEvents() {
+        if (!shouldBeOnHookList()) {
+            return
+        }
+
+        EventManager.resumeEventHandler(this)
+
+        for (child in children()) {
+            child.attemptResumeEvents()
+        }
+    }
+
+    open fun shouldBeOnHookList(): Boolean = true
 
 }
 

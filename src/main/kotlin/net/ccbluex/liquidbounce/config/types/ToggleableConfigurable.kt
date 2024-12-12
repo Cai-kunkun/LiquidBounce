@@ -46,12 +46,18 @@ abstract class ToggleableConfigurable(
 
         if (state) {
             enable()
+            attemptResumeEvents()
         } else {
             disable()
+            suspendEvents()
         }
 
         inner.filterIsInstance<ChoiceConfigurable<*>>().forEach { it.newState(state) }
         inner.filterIsInstance<ToggleableConfigurable>().forEach { it.newState(state) }
+    }
+
+    override fun shouldBeOnHookList(): Boolean {
+        return this.enabled && this.parent?.shouldBeOnHookList() == true
     }
 
     open fun enable() {}

@@ -126,6 +126,16 @@ open class ClientModule(
         }
 
         new
+    }.onChanged { new ->
+        if (new) {
+            this.attemptResumeEvents()
+        } else {
+            this.suspendEvents()
+        }
+    }
+
+    override fun children(): List<EventListener> {
+        return this.inner.filterIsInstance<EventListener>() + inner.filterIsInstance<ChoiceConfigurable<*>>().flatMap { it.choices }
     }
 
     /**
@@ -133,6 +143,10 @@ open class ClientModule(
      */
     override val running: Boolean
         get() = super.running && inGame && enabled
+
+    override fun shouldBeOnHookList(): Boolean {
+        return enabled
+    }
 
     val bind by bind("Bind", InputBind(InputUtil.Type.KEYSYM, bind, bindAction))
         .doNotIncludeWhen { !AutoConfig.includeConfiguration.includeBinds }

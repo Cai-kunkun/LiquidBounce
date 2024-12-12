@@ -32,7 +32,7 @@ object VelocityIntave : Choice("Intave") {
     override val parent: ChoiceConfigurable<Choice>
         get() = modes
 
-    private class ReduceOnAttack(parent: EventListener?) : ToggleableConfigurable(
+    private class ReduceOnAttack(parent: EventListener) : ToggleableConfigurable(
         parent, "ReduceOnAttack",
         true
     ) {
@@ -54,7 +54,7 @@ object VelocityIntave : Choice("Intave") {
         tree(ReduceOnAttack(this))
     }
 
-    private class JumpReset(parent: EventListener?) : ToggleableConfigurable(
+    private class JumpReset(parent: EventListener) : ToggleableConfigurable(
         parent, "JumpReset",
         true
     ) {

@@ -63,8 +63,11 @@ object ErrorHandler {
             true
         )
 
-        // Open GitHub issue
-        browseUrl("https://github.com/CCBlueX/LiquidBounce/issues")
+        // I don't want to ever see this page again while fixing a bug haha
+        if (!LiquidBounce.IN_DEVELOPMENT) {
+            // Open GitHub issue
+            browseUrl("https://github.com/CCBlueX/LiquidBounce/issues")
+        }
 
         exitProcess(1)
     }
