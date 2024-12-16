@@ -3,6 +3,7 @@ package net.ccbluex.liquidbounce.features.module.modules.world.traps.traps
 import it.unimi.dsi.fastutil.doubles.DoubleObjectImmutablePair
 import it.unimi.dsi.fastutil.doubles.DoubleObjectPair
 import net.ccbluex.liquidbounce.event.EventListener
+import net.ccbluex.liquidbounce.event.ParentEventListener
 import net.ccbluex.liquidbounce.features.module.modules.player.invcleaner.HotbarItemSlot
 import net.ccbluex.liquidbounce.features.module.modules.world.traps.BlockChangeInfo
 import net.ccbluex.liquidbounce.features.module.modules.world.traps.BlockChangeIntent
@@ -29,7 +30,7 @@ import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Box
 import net.minecraft.util.math.Vec3d
 
-class IgnitionTrapPlanner(parent: EventListener) : TrapPlanner<IgnitionTrapPlanner.IgnitionIntentData>(
+class IgnitionTrapPlanner(parent: ParentEventListener) : TrapPlanner<IgnitionTrapPlanner.IgnitionIntentData>(
     parent,
     "Ignite",
     true

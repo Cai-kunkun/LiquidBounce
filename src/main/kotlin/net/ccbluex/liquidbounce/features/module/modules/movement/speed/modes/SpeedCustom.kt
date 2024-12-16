@@ -20,13 +20,10 @@ package net.ccbluex.liquidbounce.features.module.modules.movement.speed.modes
 
 import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
-import net.ccbluex.liquidbounce.event.EventListener
+import net.ccbluex.liquidbounce.event.*
 import net.ccbluex.liquidbounce.event.events.PacketEvent
 import net.ccbluex.liquidbounce.event.events.PlayerAfterJumpEvent
 import net.ccbluex.liquidbounce.event.events.PlayerJumpEvent
-import net.ccbluex.liquidbounce.event.handler
-import net.ccbluex.liquidbounce.event.sequenceHandler
-import net.ccbluex.liquidbounce.event.tickHandler
 import net.ccbluex.liquidbounce.features.module.modules.movement.speed.ModuleSpeed
 import net.ccbluex.liquidbounce.utils.client.Timer
 import net.ccbluex.liquidbounce.utils.entity.moving
@@ -52,7 +49,7 @@ import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket
  */
 class SpeedCustom(override val parent: ChoiceConfigurable<*>) : SpeedBHopBase("Custom", parent) {
 
-    private class HorizontalModification(parent: EventListener?) : ToggleableConfigurable(parent,
+    private class HorizontalModification(parent: ParentEventListener?) : ToggleableConfigurable(parent,
         "HorizontalModification", true) {
 
         private val horizontalAcceleration by float("HorizontalAcceleration", 0f, -0.1f..0.2f)
@@ -87,7 +84,7 @@ class SpeedCustom(override val parent: ChoiceConfigurable<*>) : SpeedBHopBase("C
 
     }
 
-    private class VerticalModification(parent: EventListener?) : ToggleableConfigurable(parent,
+    private class VerticalModification(parent: ParentEventListener?) : ToggleableConfigurable(parent,
         "VerticalModification", true) {
 
         private val jumpHeight by float("JumpHeight", 0.42f, 0.0f..3f)
@@ -114,7 +111,7 @@ class SpeedCustom(override val parent: ChoiceConfigurable<*>) : SpeedBHopBase("C
 
     }
 
-    private class Strafe(parent: EventListener?) : ToggleableConfigurable(parent, "Strafe", true) {
+    private class Strafe(parent: ParentEventListener?) : ToggleableConfigurable(parent, "Strafe", true) {
 
         private val strength by float("Strength", 1f, 0.1f..1f)
 

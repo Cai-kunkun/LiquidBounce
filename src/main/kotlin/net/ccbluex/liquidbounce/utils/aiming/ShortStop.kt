@@ -2,6 +2,7 @@ package net.ccbluex.liquidbounce.utils.aiming
 
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.EventListener
+import net.ccbluex.liquidbounce.event.ParentEventListener
 import net.ccbluex.liquidbounce.event.events.GameTickEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention
@@ -9,7 +10,7 @@ import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention
 /**
  * The short stop mechanism temporarily halts aiming at the target based on a specified rate.
  */
-class ShortStop(owner: EventListener? = null)
+class ShortStop(owner: ParentEventListener? = null)
     : ToggleableConfigurable(owner, "ShortStop", false) {
 
     private val stopRate by int("Rate", 3, 1..25, "%")

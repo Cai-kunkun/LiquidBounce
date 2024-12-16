@@ -311,7 +311,7 @@ object EventManager {
         val handlers = registry[eventClass]
             ?: error("The event '${eventClass.name}' is not registered in Events.kt::ALL_EVENT_CLASSES.")
 
-        check(eventHook.handlerClass.parent()?.children()?.contains(eventHook.handlerClass) != false) { "The event listener ${eventHook.handlerClass} has ${eventHook.handlerClass.parent()} as a parent, but it does not reference it as a child!" }
+//        check(eventHook.handlerClass.parent()?.children()?.contains(eventHook.handlerClass) != false) { "The event listener ${eventHook.handlerClass} has ${eventHook.handlerClass.parent()} as a parent, but it does not reference it as a child!" }
 
         handlers.registerHook(eventHook as EventHook<Event>)
 

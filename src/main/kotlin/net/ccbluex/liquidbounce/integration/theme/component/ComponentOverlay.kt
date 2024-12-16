@@ -23,12 +23,14 @@ package net.ccbluex.liquidbounce.integration.theme.component
 
 import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.event.EventManager
+import net.ccbluex.liquidbounce.event.ParentEventListener
 import net.ccbluex.liquidbounce.event.events.ComponentsUpdate
 import net.ccbluex.liquidbounce.features.misc.HideAppearance
 import net.ccbluex.liquidbounce.features.module.modules.render.ModuleHud
 import net.ccbluex.liquidbounce.integration.theme.ThemeManager
 import net.ccbluex.liquidbounce.integration.theme.component.types.IntegratedComponent
 import net.ccbluex.liquidbounce.integration.theme.component.types.TextComponent
+import net.ccbluex.liquidbounce.integration.theme.component.types.minimap.MinimapComponent
 import net.ccbluex.liquidbounce.utils.client.logger
 
 val components: MutableList<Component> = mutableListOf()
@@ -36,7 +38,7 @@ val customComponents: MutableList<Component> = mutableListOf(
     TextComponent("hello! :)", enabled = false)
 )
 
-object ComponentOverlay : EventListener {
+object ComponentOverlay : ParentEventListener {
 
     @JvmStatic
     fun isTweakEnabled(tweak: FeatureTweak) = this.running && !HideAppearance.isHidingNow &&
@@ -63,6 +65,11 @@ object ComponentOverlay : EventListener {
     }
 
     fun fireComponentsUpdate() = EventManager.callEvent(ComponentsUpdate(components + customComponents))
+
+    override fun children(): List<EventListener> {
+        // TODO: Man, this sucks!
+        return listOf(MinimapComponent)
+    }
 
     override fun parent() = ModuleHud
 

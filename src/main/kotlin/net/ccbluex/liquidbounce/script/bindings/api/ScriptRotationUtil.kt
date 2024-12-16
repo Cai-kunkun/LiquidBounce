@@ -19,6 +19,7 @@
 package net.ccbluex.liquidbounce.script.bindings.api
 
 import net.ccbluex.liquidbounce.event.EventListener
+import net.ccbluex.liquidbounce.event.ParentEventListener
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.utils.aiming.Rotation
@@ -88,7 +89,7 @@ object ScriptRotationUtil {
         RotationManager.aimAt(
             rotation,
             configurable = RotationsConfigurable(
-                object : EventListener { }
+                object : ParentEventListener { }
             ).also {
                 it.fixVelocity = fixVelocity
             }, priority = Priority.NORMAL, provider = ClientModule("ScriptAPI", Category.MISC)

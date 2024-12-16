@@ -24,6 +24,7 @@ import net.ccbluex.liquidbounce.config.gson.stategies.Exclude
 import net.ccbluex.liquidbounce.config.types.*
 import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.event.EventManager
+import net.ccbluex.liquidbounce.event.ParentEventListener
 import net.ccbluex.liquidbounce.event.events.*
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.modules.misc.antibot.ModuleAntiBot
@@ -51,7 +52,7 @@ open class ClientModule(
     hide: Boolean = false, // default hide
     @Exclude val disableOnQuit: Boolean = false, // disables module when player leaves the world,
     @Exclude val aliases: Array<out String> = emptyArray() // additional names under which the module is known
-) : EventListener, Configurable(name), MinecraftShortcuts {
+) : ParentEventListener, Configurable(name), MinecraftShortcuts {
 
     /**
      * Option to enable or disable the module, this DOES NOT mean the module is running. This
@@ -135,7 +136,7 @@ open class ClientModule(
     }
 
     override fun children(): List<EventListener> {
-        return this.inner.filterIsInstance<EventListener>() + inner.filterIsInstance<ChoiceConfigurable<*>>().flatMap { it.choices }
+        return extractEventListenersFromValues(this.inner)
     }
 
     /**

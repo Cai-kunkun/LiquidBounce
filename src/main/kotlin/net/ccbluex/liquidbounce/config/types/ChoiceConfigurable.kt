@@ -21,6 +21,7 @@ package net.ccbluex.liquidbounce.config.types
 import net.ccbluex.liquidbounce.config.gson.stategies.Exclude
 import net.ccbluex.liquidbounce.config.gson.stategies.ProtocolExclude
 import net.ccbluex.liquidbounce.event.EventListener
+import net.ccbluex.liquidbounce.event.ParentEventListener
 import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
 import net.ccbluex.liquidbounce.script.ScriptApiRequired
 import net.ccbluex.liquidbounce.utils.kotlin.mapArray
@@ -29,7 +30,7 @@ import net.ccbluex.liquidbounce.utils.kotlin.mapArray
  * Allows to configure and manage modes
  */
 class ChoiceConfigurable<T : Choice>(
-    @Exclude @ProtocolExclude val eventListener: EventListener,
+    @Exclude @ProtocolExclude val eventListener: ParentEventListener,
     name: String,
     activeChoiceCallback: (ChoiceConfigurable<T>) -> T,
     choicesCallback: (ChoiceConfigurable<T>) -> Array<T>
@@ -122,7 +123,7 @@ class ChoiceConfigurable<T : Choice>(
 /**
  * A mode is sub-module to separate different bypasses into extra classes
  */
-abstract class Choice(name: String) : Configurable(name), EventListener, NamedChoice, MinecraftShortcuts {
+abstract class Choice(name: String) : Configurable(name), ParentEventListener, NamedChoice, MinecraftShortcuts {
 
     override val choiceName: String
         get() = this.name
@@ -161,6 +162,10 @@ abstract class Choice(name: String) : Configurable(name), EventListener, NamedCh
         activeCallback: (ChoiceConfigurable<T>) -> T,
         choicesCallback: (ChoiceConfigurable<T>) -> Array<T>
     ) = choices(this, name, activeCallback, choicesCallback)
+
+    override fun children(): List<EventListener> {
+        return extractEventListenersFromValues(inner)
+    }
 }
 
 /**

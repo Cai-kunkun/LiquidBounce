@@ -21,6 +21,7 @@ package net.ccbluex.liquidbounce.utils.aiming
 import net.ccbluex.liquidbounce.config.types.Configurable
 import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.event.EventManager
+import net.ccbluex.liquidbounce.event.ParentEventListener
 import net.ccbluex.liquidbounce.event.events.MovementInputEvent
 import net.ccbluex.liquidbounce.event.events.PacketEvent
 import net.ccbluex.liquidbounce.event.events.PlayerVelocityStrafe
@@ -57,7 +58,7 @@ import kotlin.math.sqrt
  * Configurable to configure the dynamic rotation engine
  */
 open class RotationsConfigurable(
-    owner: EventListener,
+    owner: ParentEventListener,
     fixVelocity: Boolean = true,
     changeLook: Boolean = false,
     combatSpecific: Boolean = false

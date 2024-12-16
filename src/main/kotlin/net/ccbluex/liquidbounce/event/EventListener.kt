@@ -18,6 +18,8 @@
  */
 package net.ccbluex.liquidbounce.event
 
+import net.ccbluex.liquidbounce.config.types.ChoiceConfigurable
+import net.ccbluex.liquidbounce.config.types.Value
 import net.ccbluex.liquidbounce.event.events.GameTickEvent
 import net.ccbluex.liquidbounce.features.misc.HideAppearance.isDestructed
 
@@ -45,9 +47,9 @@ interface EventListener {
         get() = parent()?.running ?: !isDestructed
 
     /**
-     * Parent listenable
+     * Parent listenable.
      */
-    fun parent(): EventListener? = null
+    fun parent(): ParentEventListener? = null
 
     /**
      * Children listenables
@@ -99,8 +101,30 @@ interface EventListener {
         }
     }
 
-    open fun shouldBeOnHookList(): Boolean = true
+    /**
+     * When a module/configurable is disabled, their event handlers should not be on the handler list.
+     *
+     * On an event which could change this state (i.e. toggling a module/configurable), this function is called to
+     * determine it's state.
+     *
+     * [running] on the other hand is called every time an event occurs in order to determine if the handler should be
+     * called.
+     */
+    fun shouldBeOnHookList(): Boolean = true
+}
 
+/**
+ * An event listener which can have children
+ */
+interface ParentEventListener : EventListener {
+    override fun children(): List<EventListener> {
+        error("Should be implemented!")
+    }
+
+    fun extractEventListenersFromValues(values: MutableList<Value<*>>): List<EventListener> {
+        return values.filterIsInstance<EventListener>() + values.filterIsInstance<ChoiceConfigurable<*>>()
+            .flatMap { it.choices }
+    }
 }
 
 inline fun <reified T : Event> EventListener.handler(

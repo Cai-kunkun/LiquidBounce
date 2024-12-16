@@ -2,6 +2,7 @@ package net.ccbluex.liquidbounce.utils.aiming
 
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.EventListener
+import net.ccbluex.liquidbounce.event.ParentEventListener
 import net.ccbluex.liquidbounce.event.events.GameTickEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention
@@ -13,7 +14,7 @@ import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention
  * enhances aiming by providing smooth adjustments, particularly for fast-moving targets,
  * avoiding abrupt or unnatural flicks.
  */
-class SlowStart(owner: EventListener? = null)
+class SlowStart(owner: ParentEventListener? = null)
     : ToggleableConfigurable(owner, "SlowStart", false) {
 
     // Configuration properties

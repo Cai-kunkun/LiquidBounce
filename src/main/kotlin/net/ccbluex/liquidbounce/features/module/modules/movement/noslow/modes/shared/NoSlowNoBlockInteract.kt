@@ -20,6 +20,7 @@ package net.ccbluex.liquidbounce.features.module.modules.movement.noslow.modes.s
 
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.EventListener
+import net.ccbluex.liquidbounce.event.ParentEventListener
 import net.ccbluex.liquidbounce.event.events.PacketEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.utils.block.getState
@@ -33,7 +34,7 @@ import net.minecraft.util.UseAction
  * Confirmed to be working on 25th of May 2024
  */
 internal class NoSlowNoBlockInteract(
-    parent: EventListener? = null,
+    parent: ParentEventListener? = null,
     actionFilter: (UseAction) -> Boolean = { true }
 ) : ToggleableConfigurable(parent, "NoBlockInteract", true) {
 
