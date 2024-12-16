@@ -157,8 +157,11 @@ fun EventListener.tickHandler(eventHandler: SuspendableHandler<DummyEvent>) {
     // and can be used in the event handler function. This is a very useful pattern to use in Kotlin.
     var sequence: TickSequence? = TickSequence(this, eventHandler)
 
+    // This is shit code.
+    val hookContainer = Container<EventHook<GameTickEvent>?>(null)
+
     // Ignore condition makes sense because we do not want our sequence to run after we do not handle events anymore
-    handler<GameTickEvent>(ignoreNotRunning = true) {
+    val hook = handler<GameTickEvent>(ignoreNotRunning = true) {
         // Check if we should start or stop the sequence
         if (this.running) {
             // Check if the sequence is already running
@@ -171,6 +174,12 @@ fun EventListener.tickHandler(eventHandler: SuspendableHandler<DummyEvent>) {
             // If the sequence is running, we should stop it
             sequence?.cancel()
             sequence = null
+
+            EventManager.suspendEventHook(GameTickEvent::class.java, hookContainer.t!!)
         }
     }
+
+    hookContainer.t = hook
 }
+
+private class Container<T>(var t: T)

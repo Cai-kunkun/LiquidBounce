@@ -357,6 +357,10 @@ object EventManager {
 
     fun suspendEventHandler(eventListener: EventListener) {
         forEachHookOf(eventListener) { hookList, hook ->
+            if (hook.ignoreNotRunning) {
+                return@forEachHookOf
+            }
+
             hookList.suspendHook(hook)
         }
     }
