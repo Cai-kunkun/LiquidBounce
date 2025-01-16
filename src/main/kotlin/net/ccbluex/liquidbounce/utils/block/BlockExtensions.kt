@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,9 @@
  * You should have received a copy of the GNU General Public License
  * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
  */
+
+@file:Suppress("TooManyFunctions")
+
 package net.ccbluex.liquidbounce.utils.block
 
 import it.unimi.dsi.fastutil.booleans.BooleanObjectPair
@@ -29,7 +32,6 @@ import net.ccbluex.liquidbounce.event.EventManager
 import net.ccbluex.liquidbounce.event.events.BlockBreakingProgressEvent
 import net.ccbluex.liquidbounce.render.FULL_BOX
 import net.ccbluex.liquidbounce.utils.client.*
-import net.ccbluex.liquidbounce.utils.entity.eyes
 import net.ccbluex.liquidbounce.utils.kotlin.mapArray
 import net.ccbluex.liquidbounce.utils.math.rangeTo
 import net.minecraft.block.*
@@ -61,7 +63,7 @@ fun BlockPos.getBlock() = getState()?.block
 
 fun BlockPos.getCenterDistanceSquared() = player.squaredDistanceTo(this.x + 0.5, this.y + 0.5, this.z + 0.5)
 
-fun BlockPos.getCenterDistanceSquaredEyes() = player.eyes.squaredDistanceTo(this.x + 0.5, this.y + 0.5, this.z + 0.5)
+fun BlockPos.getCenterDistanceSquaredEyes() = player.eyePos.squaredDistanceTo(this.x + 0.5, this.y + 0.5, this.z + 0.5)
 
 val BlockState.isBed: Boolean
     get() = isIn(BlockTags.BEDS)
@@ -503,6 +505,12 @@ private inline fun handleActionsOnAccept(
 
     return
 }
+
+private fun ActionResult.shouldSwingHand(): Boolean {
+    return this !is ActionResult.Success ||
+        this.swingSource != ActionResult.SwingSource.SERVER
+}
+
 
 /**
  * Just interacts with the item in the hand instead of using it on the block

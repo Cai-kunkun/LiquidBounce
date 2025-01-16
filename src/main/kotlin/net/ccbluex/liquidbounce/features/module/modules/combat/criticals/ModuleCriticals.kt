@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.config.types.NoneChoice
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.events.AttackEntityEvent
+import net.ccbluex.liquidbounce.event.events.SprintEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
@@ -34,7 +35,7 @@ import net.ccbluex.liquidbounce.features.module.modules.movement.liquidwalk.Modu
 import net.ccbluex.liquidbounce.utils.block.collideBlockIntersects
 import net.ccbluex.liquidbounce.utils.combat.findEnemy
 import net.ccbluex.liquidbounce.utils.entity.box
-import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention
+import net.ccbluex.liquidbounce.utils.kotlin.EventPriorityConvention.CRITICAL_MODIFICATION
 import net.minecraft.block.CobwebBlock
 import net.minecraft.entity.Entity
 import net.minecraft.entity.LivingEntity
@@ -80,14 +81,36 @@ object ModuleCriticals : ClientModule("Criticals", Category.COMBAT) {
 
         @Suppress("unused")
         private val attackHandler = handler<AttackEntityEvent>(
-            priority = EventPriorityConvention.FIRST_PRIORITY
-        ) {
+            priority = CRITICAL_MODIFICATION
+        ) { event ->
+            if (event.isCancelled) {
+                return@handler
+            }
+
             if (stopSprinting == StopSprintingMode.ON_ATTACK && player.lastSprinting) {
                 network.sendPacket(ClientCommandC2SPacket(player, ClientCommandC2SPacket.Mode.STOP_SPRINTING))
                 player.lastSprinting = false
             }
         }
 
+        @Suppress("unused")
+        private val sprintHandler = handler<SprintEvent> { event ->
+            when (stopSprinting) {
+                StopSprintingMode.LEGIT ->
+                    if (event.source == SprintEvent.Source.MOVEMENT_TICK || event.source == SprintEvent.Source.INPUT) {
+                        event.sprint = false
+                    }
+                StopSprintingMode.ON_NETWORK ->
+                    if (event.source == SprintEvent.Source.NETWORK || event.source == SprintEvent.Source.INPUT) {
+                        event.sprint = false
+                    }
+                else -> {}
+            }
+        }
+
+        fun shouldAttemptCritWhileSprinting(): Boolean {
+            return this.running && this.stopSprinting == StopSprintingMode.NONE
+        }
     }
 
     /**
@@ -102,6 +125,10 @@ object ModuleCriticals : ClientModule("Criticals", Category.COMBAT) {
 
         @Suppress("unused")
         private val attackHandler = handler<AttackEntityEvent> { event ->
+            if (event.isCancelled) {
+                return@handler
+            }
+
             if (event.entity !is LivingEntity) {
                 return@handler
             }

@@ -1,38 +1,57 @@
+/*
+ * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
+ *
+ * Copyright (c) 2015 - 2025 CCBlueX
+ *
+ * LiquidBounce is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * LiquidBounce is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
+ */
 package net.ccbluex.liquidbounce.features.module.modules.misc
 
 import com.oracle.truffle.runtime.collection.ArrayQueue
 import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.events.PacketEvent
-import net.ccbluex.liquidbounce.event.events.SimulatedTickEvent
+import net.ccbluex.liquidbounce.event.events.RotationUpdateEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.event.sequenceHandler
 import net.ccbluex.liquidbounce.event.tickHandler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKillAura
-import net.ccbluex.liquidbounce.features.module.modules.player.invcleaner.HotbarItemSlot
-import net.ccbluex.liquidbounce.utils.render.trajectory.TrajectoryInfo
-import net.ccbluex.liquidbounce.utils.render.trajectory.TrajectoryInfoRenderer
+import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
 import net.ccbluex.liquidbounce.utils.aiming.Rotation
 import net.ccbluex.liquidbounce.utils.aiming.RotationManager
+import net.ccbluex.liquidbounce.utils.aiming.RotationUtil
 import net.ccbluex.liquidbounce.utils.aiming.RotationsConfigurable
 import net.ccbluex.liquidbounce.utils.aiming.projectiles.SituationalProjectileAngleCalculator
 import net.ccbluex.liquidbounce.utils.combat.CombatManager
 import net.ccbluex.liquidbounce.utils.combat.shouldBeAttacked
-import net.ccbluex.liquidbounce.utils.inventory.OFFHAND_SLOT
+import net.ccbluex.liquidbounce.utils.inventory.OffHandSlot
+import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.ccbluex.liquidbounce.utils.inventory.useHotbarSlotOrOffhand
-import net.ccbluex.liquidbounce.utils.item.findHotbarItemSlot
 import net.ccbluex.liquidbounce.utils.kotlin.Priority
+import net.ccbluex.liquidbounce.utils.render.trajectory.TrajectoryInfo
+import net.ccbluex.liquidbounce.utils.render.trajectory.TrajectoryInfoRenderer
 import net.minecraft.entity.Entity
 import net.minecraft.entity.EntityDimensions
 import net.minecraft.entity.EntityType
+import net.minecraft.entity.SpawnReason
 import net.minecraft.entity.projectile.thrown.EnderPearlEntity
 import net.minecraft.item.Items
 import net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket
 import net.minecraft.util.hit.HitResult
 import net.minecraft.util.math.Vec3d
-import kotlin.math.*
 
 private const val MAX_SIMULATED_TICKS = 240
 
@@ -47,11 +66,6 @@ object ModuleAutoPearl : ClientModule("AutoPearl", Category.MISC, aliases = arra
 
     private val mode by enumChoice("Mode", Modes.TRIGGER)
 
-    init {
-        tree(Rotate)
-        tree(Limits)
-    }
-
     private object Limits : ToggleableConfigurable(this, "Limits", true) {
         val angle by int("Angle", 180, 0..180, suffix = "°")
         val activationDistance by float("MinDistance", 8.0f, 0.0f..10.0f, suffix = "m")
@@ -62,44 +76,44 @@ object ModuleAutoPearl : ClientModule("AutoPearl", Category.MISC, aliases = arra
         val rotations = tree(RotationsConfigurable(this))
     }
 
+    init {
+        treeAll(Rotate, Limits)
+    }
+
     private val combatPauseTime by int("CombatPauseTime", 0, 0..40, "ticks")
     private val slotResetDelay by intRange("SlotResetDelay", 0..0, 0..40, "ticks")
 
     private val queue = ArrayQueue<Rotation>()
 
     private val enderPearlSlot: HotbarItemSlot?
-        get() = if (OFFHAND_SLOT.itemStack.item == Items.ENDER_PEARL) {
-            OFFHAND_SLOT
-        } else { findHotbarItemSlot(Items.ENDER_PEARL) }
+        get() = if (OffHandSlot.itemStack.item == Items.ENDER_PEARL) {
+            OffHandSlot
+        } else {
+            Slots.Hotbar.findSlot(Items.ENDER_PEARL)
+        }
 
     @Suppress("unused")
     private val pearlSpawnHandler = handler<PacketEvent> { event ->
-        if (event.packet !is EntitySpawnS2CPacket) {
+        if (event.packet !is EntitySpawnS2CPacket || event.packet.entityType != EntityType.ENDER_PEARL) {
             return@handler
         }
 
-        if (event.packet.entityType != EntityType.ENDER_PEARL) {
-            return@handler
-        }
-
-        if (enderPearlSlot == null) {
-            return@handler
-        }
+        enderPearlSlot ?: return@handler
 
         val data = event.packet
-        val entity = data.entityType.create(world) as EnderPearlEntity
+        val entity = data.entityType.create(world, SpawnReason.SPAWN_ITEM_USE) as EnderPearlEntity
         entity.onSpawnPacket(data)
 
         proceedPearl(
             pearl = entity,
-            // entity.velocity & entity.pos doesnt work, dont use it
+            // entity.velocity & entity.pos doesn't work, don't use it
             velocity = with(data) { Vec3d(velocityX, velocityY, velocityZ) },
             pearlPos = with(data) { Vec3d(x, y, z) }
         )
     }
 
     @Suppress("unused")
-    private val simulatedTickHandler = sequenceHandler<SimulatedTickEvent> {
+    private val simulatedTickHandler = sequenceHandler<RotationUpdateEvent> {
         val rotation = queue.peek() ?: return@sequenceHandler
 
         CombatManager.pauseCombatForAtLeast(combatPauseTime)
@@ -118,8 +132,8 @@ object ModuleAutoPearl : ClientModule("AutoPearl", Category.MISC, aliases = arra
         val itemSlot = enderPearlSlot ?: return@tickHandler
 
         if (Rotate.enabled) {
-            val checkDifference = {
-                abs(RotationManager.rotationDifference(RotationManager.serverRotation, rotation)) <= 1.0f
+            fun isRotationSufficient(): Boolean {
+                return RotationManager.serverRotation.angleTo(rotation) <= 1.0f
             }
 
             waitConditional(20) {
@@ -129,10 +143,10 @@ object ModuleAutoPearl : ClientModule("AutoPearl", Category.MISC, aliases = arra
                     this@ModuleAutoPearl
                 )
 
-                checkDifference()
+                isRotationSufficient()
             }
 
-            if (!checkDifference()) {
+            if (!isRotationSufficient()) {
                 return@tickHandler
             }
         }
@@ -176,7 +190,7 @@ object ModuleAutoPearl : ClientModule("AutoPearl", Category.MISC, aliases = arra
     }
 
     private fun canTrigger(pearl: EnderPearlEntity): Boolean {
-        if (Limits.enabled && Limits.angle < RotationManager.rotationDifference(pearl)) {
+        if (Limits.enabled && Limits.angle < RotationUtil.crosshairAngleToEntity(pearl)) {
             return false
         }
 
@@ -224,11 +238,11 @@ object ModuleAutoPearl : ClientModule("AutoPearl", Category.MISC, aliases = arra
 
     override fun disable() {
         queue.clear()
-        super.disable()
     }
 
     private enum class Modes(override val choiceName: String) : NamedChoice {
         TRIGGER("Trigger"),
         TARGET("Target")
     }
+
 }

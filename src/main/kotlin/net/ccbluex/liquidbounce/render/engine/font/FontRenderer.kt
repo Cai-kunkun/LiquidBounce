@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
 package net.ccbluex.liquidbounce.render.engine.font
 
 import com.mojang.blaze3d.systems.RenderSystem
-import net.ccbluex.liquidbounce.features.module.modules.misc.nameprotect.ModuleNameProtect
 import net.ccbluex.liquidbounce.features.module.modules.misc.nameprotect.sanitizeForeignInput
 import net.ccbluex.liquidbounce.render.*
 import net.ccbluex.liquidbounce.render.FontManager.DEFAULT_FONT_SIZE
@@ -227,9 +226,10 @@ class FontRenderer(
         }
     }
 
+    @Suppress("LongParameterList")
     private fun drawLine(
         x0: Float,
-        x: Float,
+        x1: Float,
         y: Float,
         z: Float,
         color: Color4b,
@@ -239,7 +239,7 @@ class FontRenderer(
             this.cache.lines.add(
                 RenderedLine(
                     Vec3(x0, y - this.height + this.ascent, z),
-                    Vec3(x, y - this.height + this.ascent, z),
+                    Vec3(x1, y - this.height + this.ascent, z),
                     color
                 )
             )
@@ -247,7 +247,7 @@ class FontRenderer(
             this.cache.lines.add(
                 RenderedLine(
                     Vec3(x0, y + 1.0f, z),
-                    Vec3(x, y + 1.0f, z),
+                    Vec3(x1, y + 1.0f, z),
                     color
                 )
             )

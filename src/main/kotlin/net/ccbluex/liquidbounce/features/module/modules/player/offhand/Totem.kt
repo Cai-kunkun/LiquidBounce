@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +22,9 @@ import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.features.module.modules.player.nofall.ModuleNoFall
 import net.ccbluex.liquidbounce.utils.block.*
 import net.ccbluex.liquidbounce.utils.entity.*
-import net.ccbluex.liquidbounce.utils.inventory.ARMOR_SLOTS
 import net.ccbluex.liquidbounce.utils.inventory.ClickInventoryAction
 import net.ccbluex.liquidbounce.utils.inventory.InventoryManager
+import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.ccbluex.liquidbounce.utils.math.toVec3d
 import net.minecraft.block.BedBlock
 import net.minecraft.block.RespawnAnchorBlock
@@ -96,7 +96,7 @@ class Totem : ToggleableConfigurable(ModuleOffhand, "Totem", true) {
                     return 0f
                 }
 
-                if (ignoreElytra && player.isFallFlying && player.isInPose(EntityPose.FALL_FLYING)) {
+                if (ignoreElytra && player.isGliding && player.isInPose(EntityPose.GLIDING)) {
                     return 0f
                 }
 
@@ -129,7 +129,7 @@ class Totem : ToggleableConfigurable(ModuleOffhand, "Totem", true) {
                 return true
             }
 
-            if (missingArmor && ARMOR_SLOTS.any { it.itemStack.isEmpty }) {
+            if (missingArmor && Slots.Armor.any { it.itemStack.isEmpty }) {
                 return true
             }
 
@@ -221,7 +221,7 @@ class Totem : ToggleableConfigurable(ModuleOffhand, "Totem", true) {
                 }
 
                 maxDamage = maxDamage.coerceAtLeast(
-                    player.getDamageFromExplosion(pos.toVec3d(), null, 5f, 10f, 100f, exclude)
+                    player.getDamageFromExplosion(pos.toVec3d(), 5f, 10f, 100f, exclude)
                 )
 
                 if (maxDamage >= allowedDamage) {

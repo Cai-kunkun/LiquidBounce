@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,15 +22,14 @@ import com.mojang.blaze3d.systems.RenderSystem
 import net.ccbluex.liquidbounce.utils.client.mc
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.screen.Screen
+import net.minecraft.client.gui.screen.ingame.HandledScreen.BACKGROUND_TEXTURE
 import net.minecraft.client.gui.screen.ingame.InventoryScreen.drawEntity
 import net.minecraft.client.render.RenderLayer
-import net.minecraft.client.texture.Sprite
 import net.minecraft.entity.player.PlayerEntity
 import net.minecraft.item.ItemStack
 import net.minecraft.screen.PlayerScreenHandler
 import net.minecraft.screen.slot.Slot
 import net.minecraft.text.Text
-import net.minecraft.util.Identifier
 
 class ViewedInventoryScreen(private val player: () -> PlayerEntity?) : Screen(Text.empty()) {
 
@@ -100,13 +99,13 @@ class ViewedInventoryScreen(private val player: () -> PlayerEntity?) : Screen(Te
         context.matrices.push()
         context.matrices.translate(0f, 0f, 232f)
         context.drawItem(stack, x, y)
-        context.drawItemInSlot(textRenderer, stack, x, y, null)
+        context.drawStackOverlay(textRenderer, stack, x, y, null)
         context.matrices.pop()
     }
 
     private fun drawBackground(context: DrawContext, mouseX: Int, mouseY: Int) {
-        val backgroundTexture = Identifier.ofVanilla("textures/gui/container/inventory.png")
-        context.drawTexture(backgroundTexture, x, y, 0, 0, backgroundWidth, backgroundHeight)
+        context.drawTexture(RenderLayer::getGuiTextured, BACKGROUND_TEXTURE, x, y,
+            0.0F, 0.0F, this.backgroundWidth, this.backgroundHeight, 256, 256);
         player()?.let { player ->
             drawEntity(
                 context, x + 26, y + 8, x + 75, y + 78,
@@ -121,10 +120,9 @@ class ViewedInventoryScreen(private val player: () -> PlayerEntity?) : Screen(Te
         context.matrices.push()
         context.matrices.translate(0f, 0f, 100f)
         if (slot.stack.isEmpty && slot.isEnabled) {
-            val pair = slot.backgroundSprite
-            if (pair != null) {
-                val sprite = mc.getSpriteAtlas(pair.first).apply(pair.second) as Sprite
-                context.drawSprite(slot.x, slot.y, 0, 16, 16, sprite)
+            val identifier = slot.backgroundSprite
+            if (identifier != null) {
+                context.drawGuiTexture(RenderLayer::getGuiTextured, identifier, slot.x, slot.y, 16, 16);
                 spriteDrawn = true
             }
         }
@@ -137,7 +135,7 @@ class ViewedInventoryScreen(private val player: () -> PlayerEntity?) : Screen(Te
                 context.drawItem(slot.stack, slot.x, slot.y, seed)
             }
 
-            context.drawItemInSlot(textRenderer, slot.stack, slot.x, slot.y, null)
+            context.drawStackOverlay(textRenderer, slot.stack, slot.x, slot.y, null)
         }
 
         context.matrices.pop()

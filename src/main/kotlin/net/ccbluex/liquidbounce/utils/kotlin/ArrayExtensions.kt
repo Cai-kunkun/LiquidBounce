@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@ import it.unimi.dsi.fastutil.doubles.DoubleIterator
 import it.unimi.dsi.fastutil.doubles.DoubleIterators
 import it.unimi.dsi.fastutil.ints.IntArrayList
 import it.unimi.dsi.fastutil.ints.IntList
+import java.util.stream.Stream
 
 inline infix operator fun IntRange.contains(range: IntRange): Boolean {
     return this.first <= range.first && this.last >= range.last
@@ -50,28 +51,25 @@ fun ClosedFloatingPointRange<Float>.proportionOfValue(value: Float): Float {
 infix fun ClosedRange<Double>.step(step: Double): DoubleIterable {
     require(start.isFinite())
     require(endInclusive.isFinite())
+    require(step > 0.0)
 
     return DoubleIterable {
-        if (step == 0.0) {
-            DoubleIterators.singleton(this.start)
-        } else {
-            object : DoubleIterator {
-                private var current = start
-                private var hasNextValue = current <= endInclusive
+        object : DoubleIterator {
+            private var current = start
+            private var hasNextValue = current <= endInclusive
 
-                override fun hasNext(): Boolean = hasNextValue
+            override fun hasNext(): Boolean = hasNextValue
 
-                override fun nextDouble(): Double {
-                    if (!hasNextValue) throw NoSuchElementException()
-                    val nextValue = current
-                    current += step
-                    if (current > endInclusive) hasNextValue = false
-                    return nextValue
-                }
+            override fun nextDouble(): Double {
+                if (!hasNextValue) throw NoSuchElementException()
+                val nextValue = current
+                current += step
+                if (current > endInclusive) hasNextValue = false
+                return nextValue
+            }
 
-                override fun remove() {
-                    throw UnsupportedOperationException("This iterator is read-only")
-                }
+            override fun remove() {
+                throw UnsupportedOperationException("This iterator is read-only")
             }
         }
     }
@@ -183,3 +181,6 @@ inline fun <T> Collection<T>.mapString(transform: (T) -> Char) = with(iterator()
         transform(next())
     })
 }
+
+@Suppress("UNCHECKED_CAST")
+fun <T> Stream<T>.toTypedArray(): Array<T> = toArray() as Array<T>

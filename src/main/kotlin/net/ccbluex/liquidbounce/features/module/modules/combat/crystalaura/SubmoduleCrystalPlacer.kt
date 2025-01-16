@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015-2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,8 +29,8 @@ import net.ccbluex.liquidbounce.utils.block.getState
 import net.ccbluex.liquidbounce.utils.block.isBlockedByEntitiesReturnCrystal
 import net.ccbluex.liquidbounce.utils.client.Chronometer
 import net.ccbluex.liquidbounce.utils.client.clickBlockWithSlot
-import net.ccbluex.liquidbounce.utils.inventory.OFFHAND_SLOT
-import net.ccbluex.liquidbounce.utils.item.findHotbarSlot
+import net.ccbluex.liquidbounce.utils.inventory.OffHandSlot
+import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.ccbluex.liquidbounce.utils.render.placement.PlacementRenderer
 import net.minecraft.block.Blocks
 import net.minecraft.item.Items
@@ -58,7 +58,7 @@ object SubmoduleCrystalPlacer : ToggleableConfigurable(ModuleCrystalAura, "Place
         true,
         ModuleCrystalAura,
         clump = false,
-        defaultColor = Color4b.WHITE.alpha(90)
+        defaultColor = Color4b.WHITE.with(a = 90)
     ))
 
     private val chronometer = Chronometer()
@@ -148,10 +148,10 @@ object SubmoduleCrystalPlacer : ToggleableConfigurable(ModuleCrystalAura, "Place
     }
 
     private fun getSlot(): Int? {
-        return if (OFFHAND_SLOT.itemStack.item == Items.END_CRYSTAL) {
-            OFFHAND_SLOT.hotbarSlotForServer
+        return if (OffHandSlot.itemStack.item == Items.END_CRYSTAL) {
+            OffHandSlot.hotbarSlotForServer
         } else {
-            findHotbarSlot(Items.END_CRYSTAL)
+            Slots.Hotbar.findSlotIndex(Items.END_CRYSTAL)
         }
     }
 

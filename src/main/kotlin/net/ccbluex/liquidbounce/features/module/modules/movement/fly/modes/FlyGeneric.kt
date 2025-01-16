@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,12 +34,13 @@ import net.ccbluex.liquidbounce.event.tickHandler
 import net.ccbluex.liquidbounce.features.module.modules.movement.fly.ModuleFly
 import net.ccbluex.liquidbounce.utils.client.MovePacketType
 import net.ccbluex.liquidbounce.utils.client.chat
-import net.ccbluex.liquidbounce.utils.entity.strafe
+import net.ccbluex.liquidbounce.utils.entity.withStrafe
 import net.minecraft.block.FluidBlock
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket
 import net.minecraft.network.packet.s2c.play.ExplosionS2CPacket
 import net.minecraft.util.shape.VoxelShapes
+import kotlin.jvm.optionals.getOrNull
 
 internal object FlyVanilla : Choice("Vanilla") {
 
@@ -73,10 +74,10 @@ internal object FlyVanilla : Choice("Vanilla") {
         val vSpeed =
             if (useSprintSpeed) SprintSpeed.verticalSpeed else BaseSpeed.verticalSpeed
 
-        player.strafe(speed = hSpeed.toDouble())
+        player.velocity = player.velocity.withStrafe(speed = hSpeed.toDouble())
         player.velocity.y = when {
-            player.input.jumping -> vSpeed.toDouble()
-            player.input.sneaking -> (-vSpeed).toDouble()
+            mc.options.jumpKey.isPressed -> vSpeed.toDouble()
+            mc.options.sneakKey.isPressed -> (-vSpeed).toDouble()
             else -> glide.toDouble()
         }
 
@@ -206,7 +207,7 @@ internal object FlyExplosion : Choice("Explosion") {
     val repeatable = tickHandler {
         if (strafeSince > 0) {
             if (!player.isOnGround) {
-                player.strafe(speed = strafeSince.toDouble())
+                player.velocity = player.velocity.withStrafe(speed = strafeSince.toDouble())
                 strafeSince -= strafeDecrease
             } else {
                 strafeSince = 0f
@@ -227,12 +228,14 @@ internal object FlyExplosion : Choice("Explosion") {
             waitTicks(1)
             strafeSince = startStrafe
         } else if (packet is ExplosionS2CPacket) { // Check if explosion affects velocity
-            packet.playerVelocityX = 0f
-            packet.playerVelocityY *= vertical
-            packet.playerVelocityZ = 0f
+            packet.playerKnockback.getOrNull()?.let { knockback ->
+                knockback.x = 0.0
+                knockback.y *= vertical
+                knockback.z = 0.0
 
-            waitTicks(1)
-            strafeSince = startStrafe
+                waitTicks(1)
+                strafeSince = startStrafe
+            }
         }
     }
 
@@ -244,7 +247,7 @@ internal object FlyJetpack : Choice("Jetpack") {
         get() = ModuleFly.modes
 
     val repeatable = tickHandler {
-        if (player.input.jumping) {
+        if (player.input.playerInput.jump) {
             player.velocity.x *= 1.1
             player.velocity.y += 0.15
             player.velocity.z *= 1.1

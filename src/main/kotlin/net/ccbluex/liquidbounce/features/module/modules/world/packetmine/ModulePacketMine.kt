@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,14 +34,16 @@ import net.ccbluex.liquidbounce.features.module.modules.world.packetmine.mode.Im
 import net.ccbluex.liquidbounce.features.module.modules.world.packetmine.mode.NormalMineMode
 import net.ccbluex.liquidbounce.render.EMPTY_BOX
 import net.ccbluex.liquidbounce.render.engine.Color4b
-import net.ccbluex.liquidbounce.utils.aiming.*
+import net.ccbluex.liquidbounce.utils.aiming.Rotation
+import net.ccbluex.liquidbounce.utils.aiming.RotationManager
+import net.ccbluex.liquidbounce.utils.aiming.RotationsConfigurable
+import net.ccbluex.liquidbounce.utils.aiming.raytraceBlock
 import net.ccbluex.liquidbounce.utils.block.SwingMode
 import net.ccbluex.liquidbounce.utils.block.getCenterDistanceSquaredEyes
 import net.ccbluex.liquidbounce.utils.block.getState
 import net.ccbluex.liquidbounce.utils.block.outlineBox
 import net.ccbluex.liquidbounce.utils.client.Chronometer
 import net.ccbluex.liquidbounce.utils.client.SilentHotbar
-import net.ccbluex.liquidbounce.utils.entity.eyes
 import net.ccbluex.liquidbounce.utils.item.getEnchantment
 import net.ccbluex.liquidbounce.utils.kotlin.Priority
 import net.ccbluex.liquidbounce.utils.math.sq
@@ -166,7 +168,7 @@ object ModulePacketMine : ClientModule("PacketMine", Category.WORLD) {
     private fun handleRotating(blockPos: BlockPos, state: BlockState): Rotation? {
         val rotate = rotationMode.shouldRotate()
 
-        val eyes = player.eyes
+        val eyes = player.eyePos
         val raytrace = raytraceBlock(
             eyes,
             blockPos,
@@ -405,7 +407,7 @@ object ModulePacketMine : ClientModule("PacketMine", Category.WORLD) {
         val enchantmentLevel = stack.getEnchantment(Enchantments.EFFICIENCY)
         if (speed > 1f && enchantmentLevel != 0) {
             /**
-             * See: [EntityAttributes.PLAYER_MINING_EFFICIENCY]
+             * See: [EntityAttributes.MINING_EFFICIENCY]
              */
             val enchantmentAddition = enchantmentLevel.sq() + 1f
             speed += enchantmentAddition.coerceIn(0f..1024f)
@@ -427,9 +429,9 @@ object ModulePacketMine : ClientModule("PacketMine", Category.WORLD) {
             speed *= miningFatigueMultiplier
         }
 
-        speed *= player.getAttributeValue(EntityAttributes.PLAYER_BLOCK_BREAK_SPEED).toFloat()
+        speed *= player.getAttributeValue(EntityAttributes.BLOCK_BREAK_SPEED).toFloat()
         if (player.isSubmergedIn(FluidTags.WATER)) {
-            speed *= player.getAttributeInstance(EntityAttributes.PLAYER_SUBMERGED_MINING_SPEED)!!.value.toFloat()
+            speed *= player.getAttributeInstance(EntityAttributes.SUBMERGED_MINING_SPEED)!!.value.toFloat()
         }
 
         if (!player.isOnGround) {
@@ -461,6 +463,7 @@ object ModulePacketMine : ClientModule("PacketMine", Category.WORLD) {
 
     }
 
+    @Suppress("unused")
     enum class ToolMode(override val choiceName: String, val end: Boolean, val between: Boolean) : NamedChoice {
 
         ON_STOP("OnStop", true, false),
@@ -484,7 +487,9 @@ object ModulePacketMine : ClientModule("PacketMine", Category.WORLD) {
                 return null
             }
 
-            return ModuleAutoTool.getTool(player.inventory, state)
+            return ModuleAutoTool.toolSelector.activeChoice.getTool(state)?.let {
+                IntObjectImmutablePair(it.hotbarSlot, it.itemStack)
+            }
         }
 
     }

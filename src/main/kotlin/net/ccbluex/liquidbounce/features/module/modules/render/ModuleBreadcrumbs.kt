@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,8 +33,12 @@ import net.ccbluex.liquidbounce.render.renderEnvironmentForWorld
 import net.ccbluex.liquidbounce.render.utils.rainbow
 import net.ccbluex.liquidbounce.utils.kotlin.component1
 import net.ccbluex.liquidbounce.utils.kotlin.component2
-import net.minecraft.client.render.*
+import net.minecraft.client.gl.ShaderProgramKeys
+import net.minecraft.client.render.BufferBuilder
+import net.minecraft.client.render.BufferRenderer
+import net.minecraft.client.render.Camera
 import net.minecraft.client.render.VertexFormat.DrawMode
+import net.minecraft.client.render.VertexFormats
 import net.minecraft.client.util.math.MatrixStack
 import net.minecraft.entity.Entity
 import org.joml.Matrix4f
@@ -100,7 +104,7 @@ object ModuleBreadcrumbs : ClientModule("Breadcrumbs", Category.RENDER, aliases 
             VertexFormats.POSITION_COLOR)
         val renderData = RenderData(matrix, buffer, colorF, lines)
 
-        RenderSystem.setShader { GameRenderer.getPositionColorProgram() }
+        RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR)
 
         trails.forEach { (entity, trail) ->
             trail.verifyAndRenderTrail(renderData, camera, entity, time)
@@ -144,7 +148,7 @@ object ModuleBreadcrumbs : ClientModule("Breadcrumbs", Category.RENDER, aliases 
     }
 
     @Suppress("unused")
-    val worldChangeHandler = handler<WorldChangeEvent>(ignoreNotRunning = true) {
+    private val worldChangeHandler = handler<WorldChangeEvent> {
         clear()
     }
 

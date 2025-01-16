@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.EventManager
 import net.ccbluex.liquidbounce.event.events.BlockCountChangeEvent
 import net.ccbluex.liquidbounce.event.events.MovementInputEvent
-import net.ccbluex.liquidbounce.event.events.SimulatedTickEvent
+import net.ccbluex.liquidbounce.event.events.RotationUpdateEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.event.tickHandler
 import net.ccbluex.liquidbounce.features.module.Category
@@ -60,7 +60,6 @@ import net.ccbluex.liquidbounce.utils.block.targetfinding.BlockPlacementTarget
 import net.ccbluex.liquidbounce.utils.client.SilentHotbar
 import net.ccbluex.liquidbounce.utils.client.Timer
 import net.ccbluex.liquidbounce.utils.combat.ClickScheduler
-import net.ccbluex.liquidbounce.utils.entity.eyes
 import net.ccbluex.liquidbounce.utils.entity.moving
 import net.ccbluex.liquidbounce.utils.entity.rotation
 import net.ccbluex.liquidbounce.utils.item.*
@@ -116,7 +115,7 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
 
     private val sameYMode by enumChoice("SameY", SameYMode.OFF)
 
-    enum class SameYMode(
+    private enum class SameYMode(
         override val choiceName: String,
         val getTargetedBlockPos: (BlockPos) -> BlockPos?
     ) : NamedChoice {
@@ -155,7 +154,7 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
     }
 
     val isTowering: Boolean
-        get() = towerMode.choices.indexOf(towerMode.activeChoice) != 0 && player.input.jumping
+        get() = towerMode.choices.indexOf(towerMode.activeChoice) != 0 && mc.options.jumpKey.isPressed
 
     // SafeWalk feature - uses the SafeWalk module as a base
     @Suppress("unused")
@@ -199,6 +198,7 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
 
     init {
         tree(ScaffoldRotationConfigurable)
+        tree(ScaffoldSprintControlFeature)
         tree(SimulatePlacementAttempts)
         tree(ScaffoldSlowFeature)
         tree(ScaffoldJumpStrafe)
@@ -283,12 +283,13 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
         ScaffoldMovementPlanner.reset()
         SilentHotbar.resetSlot(this)
         updateRenderCount()
+        forceSneak = 0
     }
 
     private fun updateRenderCount(count: Int? = null) = EventManager.callEvent(BlockCountChangeEvent(count))
 
     @Suppress("unused")
-    val rotationUpdateHandler = handler<SimulatedTickEvent> {
+    private val rotationUpdateHandler = handler<RotationUpdateEvent> {
         NoFallBlink.waitUntilGround = true
 
         val blockInHotbar = findBestValidHotbarSlotForTarget()
@@ -346,26 +347,6 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
         if (rotationTiming == NORMAL) {
             val rotation = technique.getRotations(target)
 
-            // Ledge feature - AutoJump and AutoSneak
-            if (ledge) {
-                val ledgeRotation = rotation ?: RotationManager.currentRotation ?: player.rotation
-                val (requiresJump, requiresSneak) = ledge(
-                    it.simulatedPlayer,
-                    target,
-                    ledgeRotation,
-                    technique as? ScaffoldLedgeExtension
-                )
-
-                if (requiresJump) {
-                    it.movementEvent.jumping = true
-                }
-
-                if (requiresSneak > 0) {
-                    it.movementEvent.sneaking = true
-                    forceSneak = requiresSneak
-                }
-            }
-
             RotationManager.aimAt(
                 rotation ?: return@handler,
                 considerInventory = considerInventory,
@@ -377,10 +358,14 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
     }
 
     var currentOptimalLine: Line? = null
+    var rawInput = DirectionalInput.NONE
 
     @Suppress("unused")
-    private val handleMovementInput = handler<MovementInputEvent> { event ->
+    private val handleMovementInput = handler<MovementInputEvent>(
+        priority = EventPriorityConvention.MODEL_STATE
+    ) { event ->
         this.currentOptimalLine = null
+        this.rawInput = event.directionalInput
 
         val currentInput = event.directionalInput
 
@@ -392,10 +377,48 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
     }
 
     @Suppress("unused")
-    private val movementInputHandler = handler<MovementInputEvent>(priority = EventPriorityConvention.SAFETY_FEATURE) {
+    private val movementInputHandler = handler<MovementInputEvent>(
+        // Runs after the model state
+        priority = EventPriorityConvention.SAFETY_FEATURE
+    ) { event ->
         if (forceSneak > 0) {
-            it.sneaking = true
+            event.sneak = true
             forceSneak--
+        }
+
+        // Ledge feature - AutoJump and AutoSneak
+        if (ledge) {
+            val technique = if (isTowering) {
+                ScaffoldNormalTechnique
+            } else {
+                technique.activeChoice
+            }
+
+            val ledgeAction = ledge(
+                this.currentTarget,
+                RotationManager.currentRotation ?: player.rotation,
+                technique as? ScaffoldLedgeExtension
+            )
+
+            if (ledgeAction.jump) {
+                event.jump = true
+            }
+
+            if (ledgeAction.stopInput) {
+                event.directionalInput = DirectionalInput.NONE
+            }
+
+            if (ledgeAction.stepBack) {
+                event.directionalInput = event.directionalInput.copy(
+                    forwards = false,
+                    backwards = true
+                )
+            }
+
+            if (ledgeAction.sneakTime > forceSneak) {
+                event.sneak = true
+                forceSneak = ledgeAction.sneakTime
+            }
         }
     }
 
@@ -407,7 +430,7 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
     }
 
     @Suppress("unused")
-    val tickHandler = tickHandler {
+    private val tickHandler = tickHandler {
         updateRenderCount(blockCount)
 
         if (player.isOnGround) {
@@ -481,7 +504,8 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
                         player.x, player.y, player.z,
                         currentRotation.yaw,
                         currentRotation.pitch,
-                        player.isOnGround
+                        player.isOnGround,
+                        player.horizontalCollision
                     )
                 )
             }
@@ -512,7 +536,8 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
         if (rotationTiming == ON_TICK && RotationManager.serverRotation != player.rotation) {
             network.sendPacket(
                 Full(
-                    player.x, player.y, player.z, player.withFixedYaw(currentRotation), player.pitch, player.isOnGround
+                    player.x, player.y, player.z, player.withFixedYaw(currentRotation), player.pitch, player.isOnGround,
+                    player.horizontalCollision
                 )
             )
         }
@@ -521,6 +546,7 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
             ScaffoldMovementPrediction.onPlace(currentOptimalLine, previousFallOffPos)
             ScaffoldEagleFeature.onBlockPlacement()
             ScaffoldBlinkFeature.onBlockPlacement()
+            ScaffoldSprintControlFeature.onBlockPlacement()
 
             waitTicks(currentDelay)
         }
@@ -550,7 +576,7 @@ object ModuleScaffold : ClientModule("Scaffold", Category.WORLD) {
     }
 
     internal fun isValidCrosshairTarget(rayTraceResult: BlockHitResult): Boolean {
-        val diff = rayTraceResult.pos - player.eyes
+        val diff = rayTraceResult.pos - player.eyePos
 
         val side = rayTraceResult.side
 

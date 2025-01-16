@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,10 +38,9 @@ class ScriptCommandBuilder(private val commandObject: Value) {
             emptyArray()
         }
 
-        @Suppress("SpreadOperator")
         val commandBuilder = CommandBuilder
             .begin(commandObject.getMember("name").asString())
-            .alias(*aliases)
+            .alias(aliases = aliases)
 
         if (commandObject.hasMember("subcommands")) {
             val subcommands = commandObject.getMember("subcommands").`as`(Array<Value>::class.java)

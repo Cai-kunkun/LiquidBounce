@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,6 @@ package net.ccbluex.liquidbounce.injection.mixins.minecraft.render;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.sugar.Local;
-import com.mojang.blaze3d.systems.RenderSystem;
-import net.ccbluex.liquidbounce.LiquidBounce;
 import net.ccbluex.liquidbounce.event.EventManager;
 import net.ccbluex.liquidbounce.event.events.GameRenderEvent;
 import net.ccbluex.liquidbounce.event.events.PerspectiveEvent;
@@ -33,15 +31,15 @@ import net.ccbluex.liquidbounce.features.module.modules.fun.ModuleDankBobbing;
 import net.ccbluex.liquidbounce.features.module.modules.render.*;
 import net.ccbluex.liquidbounce.features.module.modules.world.ModuleLiquidPlace;
 import net.ccbluex.liquidbounce.interfaces.LightmapTextureManagerAddition;
-import net.ccbluex.liquidbounce.interfaces.PostEffectPassTextureAddition;
-import net.ccbluex.liquidbounce.render.engine.UIRenderer;
+import net.ccbluex.liquidbounce.render.engine.UiRenderer;
 import net.ccbluex.liquidbounce.render.shader.shaders.OutlineEffectShader;
 import net.ccbluex.liquidbounce.utils.aiming.RaytracingExtensionsKt;
 import net.ccbluex.liquidbounce.utils.aiming.Rotation;
 import net.ccbluex.liquidbounce.utils.aiming.RotationManager;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.PostEffectProcessor;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.ChatScreen;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
@@ -49,10 +47,7 @@ import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RotationAxis;
@@ -62,7 +57,6 @@ import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -79,16 +73,6 @@ public abstract class MixinGameRenderer {
 
     @Shadow
     @Final
-    private ResourceManager resourceManager;
-    /**
-     * UI Blur Post Effect Processor
-     *
-     * @author superblaubeere27
-     */
-    @Unique
-    private PostEffectProcessor blurPostEffectProcessor;
-    @Shadow
-    @Final
     private Camera camera;
 
     @Shadow
@@ -103,7 +87,7 @@ public abstract class MixinGameRenderer {
      */
     @Inject(method = "render", at = @At("HEAD"))
     public void hookGameRender(CallbackInfo callbackInfo) {
-        EventManager.INSTANCE.callEvent(new GameRenderEvent());
+        EventManager.INSTANCE.callEvent(GameRenderEvent.INSTANCE);
     }
 
     /**
@@ -115,11 +99,17 @@ public abstract class MixinGameRenderer {
             return original;
         }
 
-        var rotation = (RotationManager.INSTANCE.getCurrentRotation() != null) ?
-                RotationManager.INSTANCE.getCurrentRotation() :
-                ModuleFreeCam.INSTANCE.getRunning() ?
-                        RotationManager.INSTANCE.getServerRotation() :
-                        new Rotation(camera.getYaw(tickDelta), camera.getPitch(tickDelta), true);
+        var cameraRotation = new Rotation(camera.getYaw(tickDelta), camera.getPitch(tickDelta), true);
+
+        Rotation rotation;
+        if (RotationManager.INSTANCE.getCurrentRotation() != null) {
+            rotation = RotationManager.INSTANCE.getCurrentRotation();
+        } if (ModuleFreeCam.INSTANCE.getRunning()) {
+            var serverRotation = RotationManager.INSTANCE.getServerRotation();
+            rotation = ModuleFreeCam.INSTANCE.shouldDisableCameraInteract() ? serverRotation : cameraRotation;
+        } else {
+            rotation = cameraRotation;
+        }
 
         return RaytracingExtensionsKt.raycast(rotation, Math.max(blockInteractionRange, entityInteractionRange),
                 ModuleLiquidPlace.INSTANCE.getRunning(), tickDelta);
@@ -139,7 +129,7 @@ public abstract class MixinGameRenderer {
      * Hook world render event
      */
     @Inject(method = "renderWorld", at = @At(value = "FIELD", target = "Lnet/minecraft/client/render/GameRenderer;renderHand:Z", opcode = Opcodes.GETFIELD, ordinal = 0))
-    public void hookWorldRender(RenderTickCounter tickCounter, CallbackInfo ci, @Local(ordinal = 1) Matrix4f matrix4f2) {
+    public void hookWorldRender(RenderTickCounter tickCounter, CallbackInfo ci, @Local(ordinal = 2) Matrix4f matrix4f2) {
         // TODO: Improve this
         var newMatStack = new MatrixStack();
 
@@ -160,7 +150,7 @@ public abstract class MixinGameRenderer {
     public void drawItemCharms(Camera camera, float tickDelta, Matrix4f matrix4f, CallbackInfo ci) {
         if (ModuleItemChams.INSTANCE.getActive()) {
             ModuleItemChams.INSTANCE.setActive(false);
-            OutlineEffectShader.INSTANCE.apply();
+            OutlineEffectShader.INSTANCE.apply(true);
         }
     }
 
@@ -192,14 +182,14 @@ public abstract class MixinGameRenderer {
             return;
         }
 
-        if (!(client.getCameraEntity() instanceof PlayerEntity playerEntity)) {
+        if (!(client.getCameraEntity() instanceof AbstractClientPlayerEntity playerEntity)) {
             return;
         }
 
         float additionalBobbing = ModuleDankBobbing.INSTANCE.getMotion();
 
-        float g = playerEntity.horizontalSpeed - playerEntity.prevHorizontalSpeed;
-        float h = -(playerEntity.horizontalSpeed + g * f);
+        float g = playerEntity.distanceMoved - playerEntity.lastDistanceMoved;
+        float h = -(playerEntity.distanceMoved + g * f);
         float i = MathHelper.lerp(f, playerEntity.prevStrideDistance, playerEntity.strideDistance);
         matrixStack.translate((MathHelper.sin(h * MathHelper.PI) * i * 0.5F), -Math.abs(MathHelper.cos(h * MathHelper.PI) * i), 0.0D);
         matrixStack.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(MathHelper.sin(h * MathHelper.PI) * i * (3.0F + additionalBobbing)));
@@ -210,59 +200,19 @@ public abstract class MixinGameRenderer {
 
     @Inject(method = "onResized", at = @At("HEAD"))
     private void injectResizeUIBlurShader(int width, int height, CallbackInfo ci) {
-        if (this.blurPostEffectProcessor != null) {
-            this.blurPostEffectProcessor.setupDimensions(width, height);
-        }
-
-        UIRenderer.INSTANCE.setupDimensions(width, height);
-    }
-
-    @Inject(method = "loadPrograms", at = @At("TAIL"))
-    private void hookUIBlurLoad(final CallbackInfo ci) {
-        if (this.blurPostEffectProcessor == null) {
-            try {
-                var identifier = Identifier.of("liquidbounce", "shaders/post/ui_blur.json");
-
-                this.blurPostEffectProcessor = new PostEffectProcessor(this.client.getTextureManager(), this.resourceManager,
-                        this.client.getFramebuffer(), identifier);
-                this.blurPostEffectProcessor.setupDimensions(this.client.getWindow().getFramebufferWidth(),
-                        this.client.getWindow().getFramebufferHeight());
-            } catch (final Exception e) {
-                LiquidBounce.INSTANCE.getLogger().error("Failed to load UI blur shader", e);
-            }
-        }
-    }
-
-    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/WorldRenderer;drawEntityOutlinesFramebuffer()V", shift = At.Shift.AFTER))
-    private void injectUIBlurRender(RenderTickCounter tickCounter, boolean tick, CallbackInfo ci) {
-        if (!ModuleHud.INSTANCE.isBlurable() || this.blurPostEffectProcessor == null) {
-            return;
-        }
-
-        RenderSystem.disableBlend();
-        RenderSystem.disableDepthTest();
-        RenderSystem.resetTextureMatrix();
-
-        var overlayFramebuffer = UIRenderer.INSTANCE.getOverlayFramebuffer();
-        var overlayTexture = overlayFramebuffer.getColorAttachment();
-
-        overlayFramebuffer.beginRead();
-
-        RenderSystem.setShaderTexture(0, overlayTexture);
-        ((PostEffectPassTextureAddition) this.blurPostEffectProcessor.passes.get(0)).liquid_bounce$setTextureSampler("Overlay", overlayTexture);
-        this.blurPostEffectProcessor.passes.get(0).getProgram().getUniformByName("Radius").set(UIRenderer.INSTANCE.getBlurRadius());
-
-        this.blurPostEffectProcessor.render(tickCounter.getTickDelta(false));
+        UiRenderer.INSTANCE.setupDimensions(width, height);
     }
 
     @Inject(method = "render", at = @At(value = "RETURN"))
     private void hookRenderEventStop(RenderTickCounter tickCounter, boolean tick, CallbackInfo ci) {
-        UIRenderer.INSTANCE.endUIOverlayDrawing();
+        UiRenderer.INSTANCE.endUIOverlayDrawing();
     }
 
-    @Inject(method = "renderBlur", at = @At("HEAD"))
+    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screen/Screen;renderWithTooltip(Lnet/minecraft/client/gui/DrawContext;IIF)V", shift = At.Shift.BEFORE))
     private void injectRenderBlur(CallbackInfo ci) {
-        UIRenderer.INSTANCE.endUIOverlayDrawing();
+        if (!(client.currentScreen instanceof ChatScreen)) {
+            UiRenderer.INSTANCE.endUIOverlayDrawing();
+        }
     }
 
     @Inject(method = "showFloatingItem", at = @At("HEAD"), cancellable = true)
@@ -292,14 +242,6 @@ public abstract class MixinGameRenderer {
         }
 
         return result;
-    }
-
-    @Inject(method = "renderNausea", at = @At("HEAD"), cancellable = true)
-    private void hookNauseaOverlay(DrawContext context, float distortionStrength, CallbackInfo ci) {
-        var antiBlind = ModuleAntiBlind.INSTANCE;
-        if (antiBlind.getRunning() && antiBlind.getAntiNausea()) {
-            ci.cancel();
-        }
     }
 
     @ModifyExpressionValue(method = "renderWorld", at = @At(value = "INVOKE", target = "Lnet/minecraft/util/math/MathHelper;lerp(FFF)F"))
@@ -333,11 +275,11 @@ public abstract class MixinGameRenderer {
     }
 
     @ModifyReturnValue(method = "getFov", at = @At("RETURN"))
-    private double injectShit(double original) {
+    private float injectShit(float original) {
         var screen = ModuleDroneControl.INSTANCE.getScreen();
 
         if (screen != null) {
-            return Math.min(120.0, original / screen.getZoomFactor());
+            return Math.min(120f, original / screen.getZoomFactor());
         }
 
         return original;

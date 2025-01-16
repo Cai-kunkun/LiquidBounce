@@ -1,9 +1,27 @@
+/*
+ * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
+ *
+ * Copyright (c) 2015 - 2025 CCBlueX
+ *
+ * LiquidBounce is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * LiquidBounce is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with LiquidBounce. If not, see <https://www.gnu.org/licenses/>.
+ */
 package net.ccbluex.liquidbounce.features.module.modules.world.traps.traps
 
 import it.unimi.dsi.fastutil.doubles.DoubleObjectImmutablePair
 import it.unimi.dsi.fastutil.doubles.DoubleObjectPair
 import net.ccbluex.liquidbounce.event.EventListener
-import net.ccbluex.liquidbounce.features.module.modules.player.invcleaner.HotbarItemSlot
+import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
 import net.ccbluex.liquidbounce.features.module.modules.world.traps.BlockChangeInfo
 import net.ccbluex.liquidbounce.features.module.modules.world.traps.BlockChangeIntent
 import net.ccbluex.liquidbounce.features.module.modules.world.traps.IntentTiming
@@ -15,7 +33,7 @@ import net.ccbluex.liquidbounce.utils.combat.TargetTracker
 import net.ccbluex.liquidbounce.utils.combat.shouldBeAttacked
 import net.ccbluex.liquidbounce.utils.entity.boxedDistanceTo
 import net.ccbluex.liquidbounce.utils.entity.prevPos
-import net.ccbluex.liquidbounce.utils.inventory.Hotbar
+import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.ccbluex.liquidbounce.utils.math.size
 import net.ccbluex.liquidbounce.utils.math.toBlockPos
 import net.minecraft.block.Blocks
@@ -97,11 +115,15 @@ class IgnitionTrapPlanner(parent: EventListener) : TrapPlanner<IgnitionTrapPlann
         )
 
         val options = BlockPlacementTargetFindingOptions(
-            offsetsForTargets,
-            slot.itemStack,
-            NearestRotationTargetPositionFactory(PositionFactoryConfiguration(player.eyePos, 0.5)),
-            BlockPlacementTargetFindingOptions.PRIORITIZE_LEAST_BLOCK_DISTANCE,
-            player.pos
+            BlockOffsetOptions(
+                offsetsForTargets,
+                BlockPlacementTargetFindingOptions.PRIORITIZE_LEAST_BLOCK_DISTANCE,
+            ),
+            FaceHandlingOptions(
+                NearestRotationTargetPositionFactory(PositionFactoryConfiguration(player.eyePos, 0.5))
+            ),
+            stackToPlaceWith = slot.itemStack,
+            PlayerLocationOnPlacement(position = player.pos),
         )
 
         return findBestBlockPlacementTarget(blockPos, options)
@@ -189,7 +211,7 @@ class IgnitionTrapPlanner(parent: EventListener) : TrapPlanner<IgnitionTrapPlann
     }
 
     private fun findItemToIgnite(): HotbarItemSlot? {
-        return Hotbar.findClosestItem(items = trapItems)
+        return Slots.Hotbar.findClosestItem(items = trapItems)
     }
 
     class IgnitionIntentData(

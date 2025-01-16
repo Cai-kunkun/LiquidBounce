@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,14 +30,13 @@ import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.modules.combat.crystalaura.ModuleCrystalAura
 import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKillAura
-import net.ccbluex.liquidbounce.features.module.modules.player.invcleaner.HotbarItemSlot
-import net.ccbluex.liquidbounce.features.module.modules.player.invcleaner.ItemSlot
-import net.ccbluex.liquidbounce.features.module.modules.player.invcleaner.OffHandSlot
+import net.ccbluex.liquidbounce.utils.inventory.HotbarItemSlot
+import net.ccbluex.liquidbounce.utils.inventory.ItemSlot
+import net.ccbluex.liquidbounce.utils.inventory.OffHandSlot
 import net.ccbluex.liquidbounce.utils.client.Chronometer
-import net.ccbluex.liquidbounce.utils.client.hasProtocolTranslator
 import net.ccbluex.liquidbounce.utils.client.isNewerThanOrEquals1_16
+import net.ccbluex.liquidbounce.utils.client.usesViaFabricPlus
 import net.ccbluex.liquidbounce.utils.inventory.*
-import net.ccbluex.liquidbounce.utils.item.findInventorySlot
 import net.minecraft.component.DataComponentTypes
 import net.minecraft.component.type.PotionContentsComponent
 import net.minecraft.entity.effect.StatusEffects
@@ -93,13 +92,13 @@ object ModuleOffhand : ClientModule("Offhand", Category.PLAYER, aliases = arrayO
         tree(Gapple)
         tree(Strength)
 
-        if (!hasProtocolTranslator) {
+        if (!usesViaFabricPlus) {
             switchMode = enumChoice("SwitchMode", SwitchMode.SWITCH)
         }
     }
 
-    private val INVENTORY_MAIN_PRIORITY = INVENTORY_SLOTS + HOTBAR_SLOTS
-    private val INVENTORY_HOTBAR_PRIORITY = HOTBAR_SLOTS + INVENTORY_SLOTS
+    private val INVENTORY_MAIN_PRIORITY = Slots.Inventory + Slots.Hotbar
+    private val INVENTORY_HOTBAR_PRIORITY = Slots.Hotbar + Slots.Inventory
     private val chronometer = Chronometer()
     private var activeMode: Mode = Mode.NONE
     private var lastMode: Mode? = null
@@ -161,7 +160,7 @@ object ModuleOffhand : ClientModule("Offhand", Category.PLAYER, aliases = arrayO
         }
 
         if (activeMode != lastTagMode) {
-            EventManager.callEvent(RefreshArrayListEvent())
+            EventManager.callEvent(RefreshArrayListEvent)
             lastTagMode = activeMode
         }
 
@@ -173,7 +172,7 @@ object ModuleOffhand : ClientModule("Offhand", Category.PLAYER, aliases = arrayO
         lastMode = activeMode
 
         // the item is already located in Off-hand slot
-        if (slot == OFFHAND_SLOT) {
+        if (slot == OffHandSlot) {
             return@handler
         }
 
@@ -272,10 +271,10 @@ object ModuleOffhand : ClientModule("Offhand", Category.PLAYER, aliases = arrayO
 
             override fun getSlot(): ItemSlot? {
                 if (isStrengthPotion.test(player.offHandStack)) {
-                    return OFFHAND_SLOT
+                    return OffHandSlot
                 }
 
-                return findInventorySlot(INVENTORY_MAIN_PRIORITY) { isStrengthPotion.test(it) }
+                return INVENTORY_MAIN_PRIORITY.findSlot { isStrengthPotion.test(it) }
             }
         },
         GAPPLE("Gapple", Items.ENCHANTED_GOLDEN_APPLE, Items.GOLDEN_APPLE) {
@@ -341,7 +340,7 @@ object ModuleOffhand : ClientModule("Offhand", Category.PLAYER, aliases = arrayO
             }
 
             if (player.offHandStack.item == item) {
-                return OFFHAND_SLOT
+                return OffHandSlot
             }
 
             val slots = if (getPrioritizedInventoryPart() == 0) {
@@ -350,13 +349,13 @@ object ModuleOffhand : ClientModule("Offhand", Category.PLAYER, aliases = arrayO
                 INVENTORY_HOTBAR_PRIORITY
             }
 
-            var itemSlot = findInventorySlot(slots) { it.item == item }
+            var itemSlot = slots.findSlot(item)
             if (itemSlot == null && fallBackItem != null) {
                 if (player.offHandStack.item == fallBackItem) {
-                    return OFFHAND_SLOT
+                    return OffHandSlot
                 }
 
-                itemSlot = findInventorySlot(slots) { it.item == fallBackItem }
+                itemSlot = slots.findSlot(fallBackItem)
             }
 
             return itemSlot
@@ -381,10 +380,12 @@ object ModuleOffhand : ClientModule("Offhand", Category.PLAYER, aliases = arrayO
          * The best method on newer servers.
          */
         SWITCH("Switch") {
-            override fun performSwitch(from: ItemSlot) = listOf(ClickInventoryAction.performSwap(
-                from = from,
-                to = OffHandSlot
-            ))
+            override fun performSwitch(from: ItemSlot) = listOf(
+                ClickInventoryAction.performSwap(
+                    from = from,
+                    to = OffHandSlot
+                )
+            )
         },
 
         /**

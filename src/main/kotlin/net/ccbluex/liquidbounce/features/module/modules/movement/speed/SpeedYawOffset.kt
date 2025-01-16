@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015 - 2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@ package net.ccbluex.liquidbounce.features.module.modules.movement.speed
 
 import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.config.types.ToggleableConfigurable
-import net.ccbluex.liquidbounce.event.events.GameTickEvent
+import net.ccbluex.liquidbounce.event.events.RotationUpdateEvent
 import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.utils.aiming.Rotation
 import net.ccbluex.liquidbounce.utils.aiming.RotationManager
@@ -38,7 +38,7 @@ object SpeedYawOffset : ToggleableConfigurable(ModuleSpeed, "YawOffset", false) 
     private var yaw = 0f
 
     @Suppress("unused")
-    private val yawOffsetHandler = handler<GameTickEvent> {
+    private val yawOffsetHandler = handler<RotationUpdateEvent> {
         when (yawOffsetMode) {
             YawOffsetMode.GROUND -> groundYawOffset() // makes you strafe more on ground
             YawOffsetMode.AIR -> airYawOffset() // 45deg strafe on air
@@ -48,7 +48,8 @@ object SpeedYawOffset : ToggleableConfigurable(ModuleSpeed, "YawOffset", false) 
         val rotation = Rotation(player.yaw - yaw, player.pitch)
 
         RotationManager.aimAt(
-            rotationsConfigurable.toAimPlan(rotation), Priority.NOT_IMPORTANT,
+            rotationsConfigurable.toAimPlan(rotation),
+            Priority.NOT_IMPORTANT,
             ModuleSpeed
         )
     }

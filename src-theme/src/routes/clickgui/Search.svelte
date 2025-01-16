@@ -168,7 +168,7 @@
                         </div>
                         <div class="aliases">
                             {#if aliases.length > 0}
-                                (aka {aliases.map(a => $spaceSeperatedNames ? convertToSpacedString(a) : a).join(", ")})
+                                (aka {aliases.map(name => $spaceSeperatedNames ? convertToSpacedString(name) : name).join(", ")})
                             {/if}
                         </div>
                     </div>

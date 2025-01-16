@@ -62,7 +62,7 @@
         const x = moduleNameElement?.getBoundingClientRect().right ?? 0;
         let moduleDescription = description;
         if (aliases.length > 0) {
-            moduleDescription += ` (aka ${aliases.map(a => $spaceSeperatedNames ? convertToSpacedString(a) : a).join(", ")})`;
+            moduleDescription += ` (aka ${aliases.map(name => $spaceSeperatedNames ? convertToSpacedString(name) : name).join(", ")})`;
         }
         descriptionStore.set({
             x: x * (2 / $scaleFactor),
@@ -96,11 +96,7 @@
             class:enabled
             class:highlight={name === $highlightModuleName}
     >
-        {#if $spaceSeperatedNames}
-            {convertToSpacedString(name)}
-        {:else}
-            {name}
-        {/if}
+        {$spaceSeperatedNames ? convertToSpacedString(name) : name}
     </div>
 
     {#if expanded && configurable}

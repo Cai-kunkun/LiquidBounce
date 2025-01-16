@@ -1,7 +1,7 @@
 /*
  * This file is part of LiquidBounce (https://github.com/CCBlueX/LiquidBounce)
  *
- * Copyright (c) 2015-2024 CCBlueX
+ * Copyright (c) 2015 - 2025 CCBlueX
  *
  * LiquidBounce is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ import net.ccbluex.liquidbounce.features.module.modules.combat.killaura.ModuleKi
 import net.ccbluex.liquidbounce.features.module.modules.player.autoqueue.ModuleAutoQueue.modes
 import net.ccbluex.liquidbounce.utils.client.*
 import net.ccbluex.liquidbounce.utils.entity.boxedDistanceTo
-import net.ccbluex.liquidbounce.utils.item.findHotbarSlot
+import net.ccbluex.liquidbounce.utils.inventory.Slots
 import net.minecraft.entity.decoration.ArmorStandEntity
 import net.minecraft.entity.player.PlayerEntity
 import net.minecraft.item.Items
@@ -152,7 +152,7 @@ object AutoQueueGommeDuels : Choice("GommeDuels") {
                 ModuleKillAura.enabled = false
             }
 
-            val headSlot = findHotbarSlot(Items.PLAYER_HEAD) ?: return
+            val headSlot = Slots.Hotbar.findSlotIndex(Items.PLAYER_HEAD) ?: return
 
             if (headSlot != player.inventory.selectedSlot) {
                 SilentHotbar.selectSlotSilently(this, headSlot, 20)
