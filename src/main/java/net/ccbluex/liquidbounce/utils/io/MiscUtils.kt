@@ -5,19 +5,25 @@
  */
 package net.ccbluex.liquidbounce.utils.io
 
+import net.ccbluex.liquidbounce.LiquidBounce
 import net.ccbluex.liquidbounce.utils.client.MinecraftInstance
 import java.awt.Desktop
 import java.awt.Font
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.io.File
 import java.io.IOException
 import java.net.URI
 import java.net.URISyntaxException
 import java.time.LocalDateTime
+import javax.imageio.ImageIO
 import javax.swing.*
 import javax.swing.filechooser.FileFilter
+import javax.swing.filechooser.FileNameExtensionFilter
 
 object MiscUtils : MinecraftInstance {
 
+    @JvmStatic
     private fun JTextArea.adjustTextAreaSize() {
         val fontMetrics = getFontMetrics(font)
 
@@ -31,6 +37,27 @@ object MiscUtils : MinecraftInstance {
     }
 
     @JvmStatic
+    fun generateCrashInfo(): String {
+        var base = """
+            --- Game crash info ---
+            Client: ${LiquidBounce.CLIENT_NAME} ${LiquidBounce.clientVersionText} (${LiquidBounce.clientCommit})
+            Time: ${LocalDateTime.now()}
+            OS: ${System.getProperty("os.name")} (Version: ${System.getProperty("os.version")}, Arch: ${System.getProperty("os.arch")})
+            Java: ${System.getProperty("java.version")} (Vendor: ${System.getProperty("java.vendor")})
+        """.trimIndent()
+
+        if (mc.currentServerData != null) {
+            val serverData = mc.currentServerData
+            base += """
+                Server address: ${serverData.serverIP}
+                Server version: ${serverData.gameVersion}
+            """.trimIndent()
+        }
+
+        return base + '\n'
+    }
+
+    @JvmStatic
     fun showErrorPopup(title: String, message: Any) =
         JOptionPane.showMessageDialog(null, message, title, JOptionPane.ERROR_MESSAGE)
 
@@ -39,7 +66,11 @@ object MiscUtils : MinecraftInstance {
         titlePrefix: String = "Exception occurred: ",
         extraContent: String = LocalDateTime.now().toString() + '\n'
     ) {
-        val title = titlePrefix + javaClass.simpleName
+        if (mc.isFullScreen) mc.toggleFullscreen()
+
+        val exceptionType = javaClass.simpleName
+
+        val title = titlePrefix + exceptionType
 
         val content = extraContent + "--- Stacktrace ---\n" + stackTraceToString()
 
@@ -51,7 +82,36 @@ object MiscUtils : MinecraftInstance {
             adjustTextAreaSize()
         }
 
-        showErrorPopup(title, textArea)
+        val scrollPane = JScrollPane(textArea).apply {
+            preferredSize = java.awt.Dimension(800, 600)
+        }
+
+        val copyButton = JButton("Copy Text").apply {
+            addActionListener {
+                val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                clipboard.setContents(StringSelection(content), null)
+                JOptionPane.showMessageDialog(null, "Text copied to clipboard!", "Info", JOptionPane.INFORMATION_MESSAGE)
+            }
+        }
+
+        val openIssueButton = JButton("Open GitHub Issue").apply {
+            addActionListener {
+                showURL("${LiquidBounce.CLIENT_GITHUB}/issues/new?template=bug_report.yml&title=%5BBUG%5D+Game+crashed+$exceptionType")
+            }
+        }
+
+        val buttonPanel = JPanel().apply {
+            add(copyButton)
+            add(openIssueButton)
+        }
+
+        val mainPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            add(scrollPane)
+            add(buttonPanel)
+        }
+
+        showErrorPopup(title, mainPanel)
     }
 
     @JvmStatic
@@ -65,40 +125,66 @@ object MiscUtils : MinecraftInstance {
         }
 
     @JvmStatic
-    fun openFileChooser(fileFiler: FileFilter? = null): File? {
+    private inline fun fileChooserAction(
+        fileFilers: Array<out FileFilter>,
+        isAcceptAllFileFilterUsed: Boolean,
+        action: JFileChooser.(JFrame) -> Int
+    ): File? {
         if (mc.isFullScreen) mc.toggleFullscreen()
 
         val fileChooser = JFileChooser()
         fileChooser.fileSelectionMode = JFileChooser.FILES_ONLY
-        fileFiler?.let { fileChooser.fileFilter = it }
+        fileChooser.isAcceptAllFileFilterUsed = isAcceptAllFileFilterUsed || fileFilers.isEmpty()
+        fileFilers.forEach(fileChooser::addChoosableFileFilter)
 
         val frame = JFrame()
         frame.isVisible = true
         frame.toFront()
         frame.isVisible = false
 
-        val action = fileChooser.showOpenDialog(frame)
+        val actionResult = fileChooser.action(frame)
         frame.dispose()
 
-        return if (action == JFileChooser.APPROVE_OPTION) fileChooser.selectedFile else null
+        return if (actionResult == JFileChooser.APPROVE_OPTION)
+            fileChooser.selectedFile.takeIf { f -> fileFilers.all { it.accept(f) } }
+        else null
     }
 
     @JvmStatic
-    fun saveFileChooser(fileFiler: FileFilter? = null): File? {
-        if (mc.isFullScreen) mc.toggleFullscreen()
+    fun openFileChooser(
+        vararg fileFilers: FileFilter,
+        acceptAll: Boolean = true,
+    ): File? = fileChooserAction(fileFilers, acceptAll, action = JFileChooser::showOpenDialog)
 
-        val fileChooser = JFileChooser()
-        fileChooser.fileSelectionMode = JFileChooser.FILES_ONLY
-        fileFiler?.let { fileChooser.fileFilter = it }
+    @JvmStatic
+    fun saveFileChooser(
+        vararg fileFilers: FileFilter,
+        acceptAll: Boolean = true,
+    ): File? = fileChooserAction(fileFilers, acceptAll, action = JFileChooser::showSaveDialog)
 
-        val frame = JFrame()
-        frame.isVisible = true
-        frame.toFront()
-        frame.isVisible = false
+}
 
-        val action = fileChooser.showSaveDialog(frame)
-        frame.dispose()
+object FileFilters {
+    @JvmField
+    val JAVASCRIPT = FileNameExtensionFilter("JavaScript Files", "js")
 
-        return if (action == JFileChooser.APPROVE_OPTION) fileChooser.selectedFile else null
+    @JvmField
+    val TEXT = FileNameExtensionFilter("Text Files", "txt")
+
+    @JvmField
+    val IMAGE = FileNameExtensionFilter("Image Files (png)", "png")
+
+    /**
+     * Based on runtime ImageIO
+     */
+    @JvmField
+    val ALL_IMAGES = ImageIO.getReaderFormatNames().mapTo(sortedSetOf(), String::lowercase).let {
+        FileNameExtensionFilter("Image Files (${it.joinToString()}", *it.toTypedArray())
     }
+
+    @JvmField
+    val SHADER = FileNameExtensionFilter("Shader Files (frag, glsl, shader)", "frag", "glsl", "shader")
+
+    @JvmField
+    val ARCHIVE = FileNameExtensionFilter("Archive Files (zip)", "zip")
 }

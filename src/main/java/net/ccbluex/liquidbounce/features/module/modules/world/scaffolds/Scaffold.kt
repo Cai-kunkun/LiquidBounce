@@ -31,10 +31,7 @@ import net.ccbluex.liquidbounce.utils.rotation.RotationUtils.rotationDifference
 import net.ccbluex.liquidbounce.utils.rotation.RotationUtils.setTargetRotation
 import net.ccbluex.liquidbounce.utils.rotation.RotationUtils.toRotation
 import net.ccbluex.liquidbounce.utils.simulation.SimulatedPlayer
-import net.ccbluex.liquidbounce.utils.timing.DelayTimer
-import net.ccbluex.liquidbounce.utils.timing.MSTimer
-import net.ccbluex.liquidbounce.utils.timing.TickDelayTimer
-import net.ccbluex.liquidbounce.utils.timing.TimeUtils
+import net.ccbluex.liquidbounce.utils.timing.*
 import net.ccbluex.liquidbounce.utils.timing.TimeUtils.randomDelay
 import net.minecraft.block.BlockBush
 import net.minecraft.client.settings.GameSettings
@@ -206,14 +203,19 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
     private val eagleValue =
         ListValue("Eagle", arrayOf("Normal", "Silent", "Off"), "Normal") { scaffoldMode != "GodBridge" }
     val eagle by eagleValue
-    private val adjustedSneakSpeed by boolean("AdjustedSneakSpeed", true) { eagle == "Silent" }
-    private val eagleSpeed by float("EagleSpeed", 0.3f, 0.3f..1.0f) { eagleValue.isSupported() && eagle != "Off" }
-    val eagleSprint by boolean("EagleSprint", false) { eagleValue.isSupported() && eagle == "Normal" }
-    private val blocksToEagle by int("BlocksToEagle", 0, 0..10) { eagleValue.isSupported() && eagle != "Off" }
-    private val edgeDistance by float(
-        "EagleEdgeDistance", 0f, 0f..0.5f
-    ) { eagleValue.isSupported() && eagle != "Off" }
-    private val onlyOnGround by boolean("OnlyOnGround", false) { eagleValue.isSupported() && eagle != "Off" }
+    private val eagleMode by choices("EagleMode", arrayOf("Both", "OnGround", "InAir"), "Both")
+    { eagle != "Off" && scaffoldMode != "GodBridge" }
+    private val adjustedSneakSpeed by boolean("AdjustedSneakSpeed", true)
+    { eagle == "Silent" && scaffoldMode != "GodBridge" }
+    private val eagleSpeed by float("EagleSpeed", 0.3f, 0.3f..1.0f) { eagle != "Off" && scaffoldMode != "GodBridge" }
+    val eagleSprint by boolean("EagleSprint", false) { eagle == "Normal" && scaffoldMode != "GodBridge" }
+    private val blocksToEagle by int("BlocksToEagle", 0, 0..10) { eagle != "Off" && scaffoldMode != "GodBridge" }
+    private val edgeDistance by float("EagleEdgeDistance", 0f, 0f..0.5f)
+    { eagle != "Off" && scaffoldMode != "GodBridge" }
+    private val useMaxSneakTime by boolean("UseMaxSneakTime", true) { eagle != "Off" && scaffoldMode != "GodBridge" }
+    private val maxSneakTicks by int("MaxSneakTicks", 3, 0..10) { useMaxSneakTime }
+    private val blockSneakingAgainUntilOnGround by boolean("BlockSneakingAgainUntilOnGround", true)
+    { useMaxSneakTime && eagleMode != "OnGround" }
 
     // Rotation Options
     private val modeList =
@@ -313,9 +315,13 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
 
     // Eagle
     private var placedBlocksWithoutEagle = 0
+
     var eagleSneaking = false
+
+    private var requestedStopSneak = false
+
     private val isEagleEnabled
-        get() = eagle != "Off" && !shouldGoDown && scaffoldMode != "GodBridge" && (!onlyOnGround || mc.thePlayer?.onGround == true)
+        get() = eagle != "Off" && !shouldGoDown && scaffoldMode != "GodBridge"
 
     // Downwards
     val shouldGoDown
@@ -431,32 +437,78 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
                 }
             }
 
-            if (placedBlocksWithoutEagle >= blocksToEagle) {
-                val shouldEagle = blockPos.isReplaceable || dif < edgeDistance
-                if (eagle == "Silent") {
-                    if (eagleSneaking != shouldEagle) {
-                        sendPacket(
-                            C0BPacketEntityAction(
-                                player,
-                                if (shouldEagle) C0BPacketEntityAction.Action.START_SNEAKING else C0BPacketEntityAction.Action.STOP_SNEAKING
-                            )
-                        )
+            val blockSneaking = WaitTickUtils.hasScheduled("block")
+            val alreadySneaking = WaitTickUtils.hasScheduled("sneak")
 
-                        // Adjust speed when silent sneaking
-                        if (adjustedSneakSpeed && shouldEagle) {
-                            player.motionX *= eagleSpeed
-                            player.motionZ *= eagleSpeed
+            run {
+                val options = mc.gameSettings
+
+                if (placedBlocksWithoutEagle >= blocksToEagle || alreadySneaking || blockSneaking || eagleSneaking || requestedStopSneak) {
+                    val eagleCondition = when (eagleMode) {
+                        "OnGround" -> player.onGround
+                        "InAir" -> !player.onGround
+                        else -> true
+                    }
+
+                    // For better sneak support we could move this to MovementInputEvent
+                    val pressedOnKeyboard = Keyboard.isKeyDown(options.keyBindSneak.keyCode)
+
+                    var shouldEagle =
+                        eagleCondition && (blockPos.isReplaceable || dif < edgeDistance) || pressedOnKeyboard
+
+                    val shouldSchedule = !requestedStopSneak
+
+                    if (requestedStopSneak) {
+                        requestedStopSneak = false
+
+                        if (!player.onGround) {
+                            shouldEagle = pressedOnKeyboard
+                        }
+                    } else if (blockSneaking || alreadySneaking) {
+                        return@run
+                    }
+
+                    if (eagle == "Silent") {
+                        if (eagleSneaking != shouldEagle) {
+                            sendPacket(
+                                C0BPacketEntityAction(
+                                    player, if (shouldEagle) {
+                                        C0BPacketEntityAction.Action.START_SNEAKING
+                                    } else {
+                                        C0BPacketEntityAction.Action.STOP_SNEAKING
+                                    }
+                                )
+                            )
+
+                            // Adjust speed when silent sneaking
+                            if (adjustedSneakSpeed && shouldEagle) {
+                                player.motionX *= eagleSpeed
+                                player.motionZ *= eagleSpeed
+                            }
+                        }
+
+                        eagleSneaking = shouldEagle
+                    } else {
+                        options.keyBindSneak.pressed = shouldEagle
+                        eagleSneaking = shouldEagle
+                    }
+
+                    if (eagleSneaking && shouldSchedule) {
+                        if (useMaxSneakTime) {
+                            WaitTickUtils.conditionalSchedule("sneak") { elapsed ->
+                                (elapsed >= maxSneakTicks + 1).also { requestedStopSneak = it }
+                            }
+                        }
+
+                        if (blockSneakingAgainUntilOnGround && !player.onGround) {
+                            WaitTickUtils.conditionalSchedule("block") {
+                                mc.thePlayer?.onGround.also { if (it != false) requestedStopSneak = true } ?: true
+                            }
                         }
                     }
 
-                    eagleSneaking = shouldEagle
-                } else {
-                    mc.gameSettings.keyBindSneak.pressed = shouldEagle
-                    eagleSneaking = shouldEagle
+                    placedBlocksWithoutEagle = 0
                 }
-                placedBlocksWithoutEagle = 0
-            } else {
-                placedBlocksWithoutEagle++
             }
         }
 
@@ -525,13 +577,17 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
          */
         val raycast = performBlockRaytrace(currRotation, mc.playerController.blockReachDistance)
 
+        var alreadyPlaced = false
+
         if (extraClicks) {
             val doubleClick = if (simulateDoubleClicking) RandomUtils.nextInt(-1, 1) else 0
 
-            repeat(extraClick.clicks + doubleClick) {
+            val clicks = extraClick.clicks + doubleClick
+
+            repeat(clicks) {
                 extraClick.clicks--
 
-                doPlaceAttempt(raycast)
+                doPlaceAttempt(raycast, it + 1 == clicks) { alreadyPlaced = true }
             }
         }
 
@@ -539,6 +595,11 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
             if (placeDelayValue.isActive()) {
                 delayTimer.reset()
             }
+            return@handler
+        }
+
+        // Change/Schedule slot once per tick according to vanilla-logic
+        if (alreadyPlaced || SilentHotbar.modifiedThisTick) {
             return@handler
         }
 
@@ -571,11 +632,14 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
 
         if (waitForRots) {
             godBridgeTargetRotation?.run {
-                event.originalInput.sneak = event.originalInput.sneak || rotationDifference(this, currRotation) > getFixedAngleDelta()
+                event.originalInput.sneak =
+                    event.originalInput.sneak || rotationDifference(this, currRotation) > getFixedAngleDelta()
             }
         }
 
-        val simPlayer = SimulatedPlayer.fromClientPlayer(event.originalInput)
+        val simPlayer = SimulatedPlayer.fromClientPlayer(RotationUtils.modifiedInput)
+
+        simPlayer.rotationYaw = currRotation.yaw
 
         simPlayer.tick()
 
@@ -655,19 +719,12 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
             1 to 1
         }
 
-        (-horizontal..horizontal).flatMap { x ->
-            (0 downTo -vertical).flatMap { y ->
-                (-horizontal..horizontal).map { z ->
-                    Vec3i(x, y, z)
-                }
-            }
-        }.sortedBy {
-            BlockUtils.getCenterDistance(blockPosition.add(it))
+        BlockPos.getAllInBox(
+            blockPosition.add(-horizontal, 0, -horizontal), blockPosition.add(horizontal, -vertical, horizontal)
+        ).sortedBy {
+            BlockUtils.getCenterDistance(it)
         }.forEach {
-            if (blockPosition.add(it).canBeClicked() || search(
-                    blockPosition.add(it), !shouldGoDown, area, shouldPlaceHorizontally
-                )
-            ) {
+            if (it.canBeClicked() || search(it, !shouldGoDown, area, shouldPlaceHorizontally)) {
                 return
             }
         }
@@ -694,20 +751,19 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
                 InventoryUtils.findBlockInHotbar() ?: return
             }
 
-            if (autoBlock != "Off") {
-                SilentHotbar.selectSlotSilently(
-                    this, blockSlot, immediate = true, render = autoBlock == "Pick", resetManually = true
-                )
+            stack = player.hotBarSlot(blockSlot).stack
+
+            // Check if block is placeable on target side before switching slots
+            if ((stack.item as? ItemBlock)?.canPlaceBlockOnSide(
+                    world, placeInfo.blockPos, placeInfo.enumFacing, player, stack
+                ) == false
+            ) {
+                return
             }
 
-            stack = player.hotBarSlot(blockSlot).stack
-        }
-
-        if ((stack.item as? ItemBlock)?.canPlaceBlockOnSide(
-                world, placeInfo.blockPos, placeInfo.enumFacing, player, stack
-            ) == false
-        ) {
-            return
+            if (autoBlock != "Off") {
+                SilentHotbar.selectSlotSilently(this, blockSlot, render = autoBlock == "Pick", resetManually = true)
+            }
         }
 
         tryToPlaceBlock(stack, placeInfo.blockPos, placeInfo.enumFacing, placeInfo.vec3)
@@ -715,14 +771,14 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
         if (autoBlock == "Switch") SilentHotbar.resetSlot(this, true)
 
         // Since we violate vanilla slot switch logic if we send the packets now, we arrange them for the next tick
-        switchBlockNextTickIfPossible(stack)
+        findBlockToSwitchNextTick(stack)
 
         if (trackCPS) {
             CPSCounter.registerClick(CPSCounter.MouseButton.RIGHT)
         }
     }
 
-    private fun doPlaceAttempt(raytrace: MovingObjectPosition?) {
+    private fun doPlaceAttempt(raytrace: MovingObjectPosition?, lastClick: Boolean, onSuccess: () -> Unit = { }) {
         val player = mc.thePlayer ?: return
         val world = mc.theWorld ?: return
 
@@ -756,10 +812,12 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
             return
         }
 
-        tryToPlaceBlock(stack, raytrace.blockPos, raytrace.sideHit, raytrace.hitVec, attempt = true)
+        tryToPlaceBlock(stack, raytrace.blockPos, raytrace.sideHit, raytrace.hitVec, attempt = true) { onSuccess() }
 
         // Since we violate vanilla slot switch logic if we send the packets now, we arrange them for the next tick
-        switchBlockNextTickIfPossible(stack)
+        if (lastClick) {
+            findBlockToSwitchNextTick(stack)
+        }
 
         if (trackCPS) {
             CPSCounter.registerClick(CPSCounter.MouseButton.RIGHT)
@@ -838,7 +896,8 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
 
                     if (raytrace.typeOfHit.isBlock && timePassed) {
                         extraClick = ExtraClickInfo(
-                            TimeUtils.randomClickDelay(extraClickMinCPS, extraClickMaxCPS), System.currentTimeMillis(),
+                            TimeUtils.randomClickDelay(extraClickMinCPS, extraClickMaxCPS),
+                            System.currentTimeMillis(),
                             extraClick.clicks + 1
                         )
                     }
@@ -901,7 +960,11 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
 
         var currPlaceRotation: PlaceRotation?
 
-        for (side in EnumFacing.values().filter { !horizontalOnly || it.axis != EnumFacing.Axis.Y }) {
+        for (side in EnumFacing.values()) {
+            if (horizontalOnly && side.axis == EnumFacing.Axis.Y) {
+                continue
+            }
+
             val neighbor = blockPosition.offset(side)
 
             if (!neighbor.canBeClicked()) {
@@ -1058,7 +1121,7 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
         return old
     }
 
-    private fun switchBlockNextTickIfPossible(stack: ItemStack) {
+    private fun findBlockToSwitchNextTick(stack: ItemStack) {
         if (autoBlock in arrayOf("Off", "Switch")) return
 
         val switchAmount = if (earlySwitch) amountBeforeSwitch else 0
@@ -1088,11 +1151,8 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
     }
 
     private fun tryToPlaceBlock(
-        stack: ItemStack,
-        clickPos: BlockPos,
-        side: EnumFacing,
-        hitVec: Vec3,
-        attempt: Boolean = false,
+        stack: ItemStack, clickPos: BlockPos, side: EnumFacing, hitVec: Vec3, attempt: Boolean = false,
+        onSuccess: () -> Unit = { }
     ): Boolean {
         val thePlayer = mc.thePlayer ?: return false
 
@@ -1123,6 +1183,10 @@ object Scaffold : Module("Scaffold", Category.WORLD, Keyboard.KEY_I, hideModule 
             } else if (stack.stackSize != prevSize || mc.playerController.isInCreativeMode) mc.entityRenderer.itemRenderer.resetEquippedProgress()
 
             placeRotation = null
+
+            placedBlocksWithoutEagle++
+
+            onSuccess()
         } else {
             if (thePlayer.sendUseItem(stack)) mc.entityRenderer.itemRenderer.resetEquippedProgress2()
         }

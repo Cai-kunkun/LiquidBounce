@@ -3,7 +3,7 @@ package net.ccbluex.liquidbounce.utils.io
 import com.google.gson.*
 import com.google.gson.reflect.TypeToken
 import net.ccbluex.liquidbounce.file.FileManager.PRETTY_GSON
-import java.io.File
+import java.io.Reader
 
 private val EMPTY_JSON_ARRAY = JsonArray()
 
@@ -32,6 +32,21 @@ class JsonObjectBuilder {
         backend.addProperty(this, value)
     }
 
+    /**
+     * Fallback
+     */
+    infix fun String.to(value: Any?) {
+        when (value) {
+            null -> backend.add(this, JsonNull.INSTANCE)
+            is String -> backend.addProperty(this, value)
+            is Number -> backend.addProperty(this, value)
+            is Boolean -> backend.addProperty(this, value)
+            is JsonElement -> backend.add(this, value)
+            is JsonObjectBuilder -> backend.add(this, value.build())
+            else -> throw IllegalArgumentException("Unsupported type: ${value::class.java}")
+        }
+    }
+
     fun build() = backend
 }
 
@@ -57,4 +72,8 @@ inline fun jsonArray(builderAction: JsonArrayBuilder.() -> Unit): JsonArray {
     return JsonArrayBuilder().apply(builderAction).build()
 }
 
-inline fun <reified T> JsonElement.decode(gson: Gson = PRETTY_GSON): T = gson.fromJson<T>(this, object : TypeToken<T>() {}.type)
+inline fun <reified T> JsonElement.decode(gson: Gson = PRETTY_GSON): T = gson.fromJson(this, object : TypeToken<T>() {}.type)
+
+inline fun <reified T> Reader.decodeJson(gson: Gson = PRETTY_GSON): T = gson.fromJson(this, object : TypeToken<T>() {}.type)
+
+inline fun <reified T> String.decodeJson(gson: Gson = PRETTY_GSON): T = gson.fromJson(this, object : TypeToken<T>() {}.type)

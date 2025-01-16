@@ -5,7 +5,6 @@
  */
 package net.ccbluex.liquidbounce.injection.forge.mixins.gui;
 
-import com.google.gson.JsonObject;
 import com.mojang.authlib.Agent;
 import com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService;
 import com.mojang.authlib.yggdrasil.YggdrasilUserAuthentication;
@@ -28,7 +27,7 @@ import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiDisconnected;
 import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.gui.GuiMultiplayer;
-import net.minecraft.util.IChatComponent;
+import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.Session;
 import net.minecraftforge.fml.client.config.GuiSlider;
 import org.spongepowered.asm.mixin.Mixin;
@@ -47,8 +46,6 @@ import static net.ccbluex.liquidbounce.LiquidBounce.CLIENT_NAME;
 
 @Mixin(GuiDisconnected.class)
 public abstract class MixinGuiDisconnected extends MixinGuiScreen {
-    private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("#0");
-
     @Shadow
     private int field_175353_i;
 
@@ -113,10 +110,7 @@ public abstract class MixinGuiDisconnected extends MixinGuiScreen {
                     return null;
                 }, e -> {
                     mc.addScheduledTask(() -> {
-                        final JsonObject jsonObject = new JsonObject();
-                        jsonObject.addProperty("text", e.getMessage());
-
-                        mc.displayGuiScreen(new GuiDisconnected(new GuiMultiplayer(new GuiMainMenu()), e.getMessage(), IChatComponent.Serializer.jsonToComponent(jsonObject.toString())));
+                        mc.displayGuiScreen(new GuiDisconnected(new GuiMultiplayer(new GuiMainMenu()), e.getMessage(), new ChatComponentText(e.getMessage())));
                     });
                     return null;
                 }, () -> null));
@@ -171,7 +165,7 @@ public abstract class MixinGuiDisconnected extends MixinGuiScreen {
         if (!AutoReconnect.INSTANCE.isEnabled()) {
             autoReconnectDelaySlider.displayString = "AutoReconnect: Off";
         } else {
-            autoReconnectDelaySlider.displayString = "AutoReconnect: " + DECIMAL_FORMAT.format(AutoReconnect.INSTANCE.getDelay() / 1000.0) + "s";
+            autoReconnectDelaySlider.displayString = "AutoReconnect: " + Math.floor(AutoReconnect.INSTANCE.getDelay() / 1000.0) + "s";
         }
     }
 

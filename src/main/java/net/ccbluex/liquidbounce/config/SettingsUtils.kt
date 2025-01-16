@@ -5,6 +5,7 @@
  */
 package net.ccbluex.liquidbounce.config
 
+import kotlinx.coroutines.runBlocking
 import net.ccbluex.liquidbounce.LiquidBounce.moduleManager
 import net.ccbluex.liquidbounce.api.ClientApi
 import net.ccbluex.liquidbounce.features.module.Module
@@ -15,6 +16,9 @@ import net.ccbluex.liquidbounce.utils.io.HttpUtils
 import net.ccbluex.liquidbounce.utils.kotlin.StringUtils
 import net.ccbluex.liquidbounce.utils.render.ColorUtils.translateAlternateColorCodes
 import org.lwjgl.input.Keyboard
+import java.awt.Color
+import javax.vecmath.Vector2f
+import kotlin.math.roundToInt
 import kotlin.reflect.KMutableProperty0
 
 /**
@@ -72,7 +76,9 @@ object SettingsUtils {
 
                             text
                         } else {
-                            ClientApi.requestSettingsScript(url)
+                            runBlocking {
+                                ClientApi.getSettingsScript(settingId = url)
+                            }
                         }
 
                         applyScript(settings)
@@ -166,6 +172,33 @@ object SettingsUtils {
                         } else (moduleValue as FloatRangeValue).changeValue(min..max)
                     }
                 }
+
+                is ColorValue -> {
+                    moduleValue.readColorFromConfig(value)?.let { list ->
+                        val pos = list[0].toFloatOrNull() to list[1].toFloatOrNull()
+                        val hue = list[2].toFloatOrNull()
+                        val alpha = list[3].toFloatOrNull()
+                        val rainbow = list[4].toBooleanStrictOrNull()
+
+                        rainbow?.let { moduleValue.rainbow = it }
+
+                        if (pos.first != null && pos.second != null && hue != null && alpha != null) {
+                            moduleValue.colorPickerPos = Vector2f(pos.first!!, pos.second!!)
+                            moduleValue.hueSliderY = hue
+                            moduleValue.opacitySliderY = alpha
+
+                            val rgb = Color.HSBtoRGB(hue, pos.first!!, 1 - pos.second!!)
+
+                            val a = (alpha * 255).roundToInt()
+
+                            val r = (rgb shr 16) and 0xFF
+                            val g = (rgb shr 8) and 0xFF
+                            val b = rgb and 0xFF
+
+                            moduleValue.set(Color(a shl 24 or (r shl 16) or (g shl 8) or b, true))
+                        }
+                    }
+                }
             }
 
             chat("§7[§3§lAutoSettings§7] §a§l${module.getName()}§7 value §8§l${moduleValue.name}§7 set to §c§l$value§7.")
@@ -190,10 +223,10 @@ object SettingsUtils {
                     if (values) {
                         for (value in module.values) {
                             if (all || !value.subjective && value.shouldRender()) {
-                                val valueString = "${module.name} ${value.name} ${value.get()}"
+                                val valueString = "${module.name} ${value.name} ${value.getString()}"
 
                                 if (valueString.isNotBlank()) {
-                                    appendLine("${module.name} ${value.name} ${value.get()}")
+                                    appendLine(valueString)
                                 }
                             }
                         }

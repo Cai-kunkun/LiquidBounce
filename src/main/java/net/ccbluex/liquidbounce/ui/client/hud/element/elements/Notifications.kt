@@ -72,6 +72,8 @@ class Notification(private val message: String, private val delay: Float = 60F) 
         textLength = Fonts.font35.getStringWidth(message)
     }
 
+    // TODO: Recode with fade formulas instead
+
     /**
      * Draw notification
      */

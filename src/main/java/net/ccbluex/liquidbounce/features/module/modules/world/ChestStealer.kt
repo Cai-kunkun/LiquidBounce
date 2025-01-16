@@ -9,10 +9,7 @@ package net.ccbluex.liquidbounce.features.module.modules.world
 
 import kotlinx.coroutines.delay
 import net.ccbluex.liquidbounce.LiquidBounce.hud
-import net.ccbluex.liquidbounce.config.IntegerValue
-import net.ccbluex.liquidbounce.config.boolean
-import net.ccbluex.liquidbounce.config.choices
-import net.ccbluex.liquidbounce.config.int
+import net.ccbluex.liquidbounce.config.*
 import net.ccbluex.liquidbounce.event.PacketEvent
 import net.ccbluex.liquidbounce.event.Render2DEvent
 import net.ccbluex.liquidbounce.event.handler
@@ -26,7 +23,6 @@ import net.ccbluex.liquidbounce.ui.client.hud.element.elements.Notification
 import net.ccbluex.liquidbounce.utils.client.chat
 import net.ccbluex.liquidbounce.utils.extensions.component1
 import net.ccbluex.liquidbounce.utils.extensions.component2
-import net.ccbluex.liquidbounce.utils.kotlin.waitUntil
 import net.ccbluex.liquidbounce.utils.inventory.InventoryManager
 import net.ccbluex.liquidbounce.utils.inventory.InventoryManager.canClickInventory
 import net.ccbluex.liquidbounce.utils.inventory.InventoryManager.chestStealerCurrentSlot
@@ -35,6 +31,10 @@ import net.ccbluex.liquidbounce.utils.inventory.InventoryUtils.countSpaceInInven
 import net.ccbluex.liquidbounce.utils.inventory.InventoryUtils.hasSpaceInInventory
 import net.ccbluex.liquidbounce.utils.inventory.SilentHotbar
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.drawRect
+import net.ccbluex.liquidbounce.utils.timing.TickedActions.awaitTicked
+import net.ccbluex.liquidbounce.utils.timing.TickedActions.clickNextTick
+import net.ccbluex.liquidbounce.utils.timing.TickedActions.isTicked
+import net.ccbluex.liquidbounce.utils.timing.TickedActions.nextTick
 import net.ccbluex.liquidbounce.utils.timing.TimeUtils.randomDelay
 import net.minecraft.client.gui.ScaledResolution
 import net.minecraft.client.gui.inventory.GuiChest
@@ -82,22 +82,10 @@ object ChestStealer : Module("ChestStealer", Category.WORLD, hideModule = false)
     val silentGUI by boolean("SilentGUI", false, subjective = true)
 
     val highlightSlot by boolean("Highlight-Slot", false, subjective = true) { !silentGUI }
-
-    val backgroundRed by int("Background-R", 128, 0..255, subjective = true) { highlightSlot && !silentGUI }
-    val backgroundGreen by int("Background-G", 128, 0..255, subjective = true) { highlightSlot && !silentGUI }
-    val backgroundBlue by int("Background-B", 128, 0..255, subjective = true) { highlightSlot && !silentGUI }
-    val backgroundAlpha by int(
-        "Background-Alpha",
-        255,
-        0..255,
-        subjective = true
-    ) { highlightSlot && !silentGUI }
+    val backgroundColor = color("BackgroundColor", Color(128, 128, 128), subjective = true) { highlightSlot && !silentGUI }
 
     val borderStrength by int("Border-Strength", 3, 1..5, subjective = true) { highlightSlot && !silentGUI }
-    val borderRed by int("Border-R", 128, 0..255, subjective = true) { highlightSlot && !silentGUI }
-    val borderGreen by int("Border-G", 128, 0..255, subjective = true) { highlightSlot && !silentGUI }
-    val borderBlue by int("Border-B", 128, 0..255, subjective = true) { highlightSlot && !silentGUI }
-    val borderAlpha by int("Border-Alpha", 255, 0..255, subjective = true) { highlightSlot && !silentGUI }
+    val borderColor = color("BorderColor", Color(128, 128, 128), subjective = true) { highlightSlot && !silentGUI }
 
     private val chestDebug by choices("Chest-Debug", arrayOf("Off", "Text", "Notification"), "Off", subjective = true)
     private val itemStolenDebug by boolean("ItemStolen-Debug", false, subjective = true) { chestDebug != "Off" }
@@ -177,7 +165,7 @@ object ChestStealer : Module("ChestStealer", Category.WORLD, hideModule = false)
                 itemsToSteal.forEachIndexed { index, (slot, stack, sortableTo) ->
                     // Wait for NoMove or cancel click
                     if (!shouldOperate()) {
-                        TickScheduler += { SilentHotbar.resetSlot() }
+                        nextTick { SilentHotbar.resetSlot() }
                         chestStealerCurrentSlot = -1
                         chestStealerLastSlot = -1
                         return
@@ -205,20 +193,20 @@ object ChestStealer : Module("ChestStealer", Category.WORLD, hideModule = false)
                     if (itemStolenDebug) debug("item: ${stack.displayName.lowercase()} | slot: $slot | delay: ${stealingDelay}ms")
 
                     // If target is sortable to a hotbar slot, steal and sort it at the same time, else shift + left-click
-                    TickScheduler.scheduleClick(slot, sortableTo ?: 0, if (sortableTo != null) 2 else 1) {
+                    clickNextTick(slot, sortableTo ?: 0, if (sortableTo != null) 2 else 1) {
                         progress = (index + 1) / itemsToSteal.size.toFloat()
 
                         if (!AutoArmor.canEquipFromChest())
-                            return@scheduleClick
+                            return@clickNextTick
 
                         val item = stack.item
 
                         if (item !is ItemArmor || thePlayer.inventory.armorInventory[getArmorPosition(stack) - 1] != null)
-                            return@scheduleClick
+                            return@clickNextTick
 
                         // TODO: should the stealing be suspended until the armor gets equipped and some delay on top of that, maybe toggleable?
                         // Try to equip armor piece from hotbar 1 tick after stealing it
-                        TickScheduler += {
+                        nextTick {
                             val hotbarStacks = thePlayer.inventory.mainInventory.take(9)
 
                             // Can't get index of stack instance, because it is different even from the one returned from windowClick()
@@ -246,19 +234,19 @@ object ChestStealer : Module("ChestStealer", Category.WORLD, hideModule = false)
                 progress = 1f
                 delay(closeDelay.toLong())
 
-                TickScheduler += { SilentHotbar.resetSlot() }
+                nextTick { SilentHotbar.resetSlot() }
                 break
             }
 
             // Wait till all scheduled clicks were sent
-            waitUntil { TickScheduler.isEmpty() }
+            awaitTicked()
 
             // Before closing the chest, check all items once more, whether server hadn't cancelled some of the actions.
             stacks = thePlayer.openContainer.inventory
         }
 
         // Wait before the chest gets closed (if it gets closed out of tick loop it could throw npe)
-        TickScheduler.scheduleAndSuspend {
+        nextTick {
             chestStealerCurrentSlot = -1
             chestStealerLastSlot = -1
             thePlayer.closeScreen()
@@ -266,6 +254,8 @@ object ChestStealer : Module("ChestStealer", Category.WORLD, hideModule = false)
 
             debug("Chest closed")
         }
+
+        awaitTicked()
     }
 
     private fun squaredDistanceOfSlots(from: Int, to: Int): Int {
@@ -295,7 +285,7 @@ object ChestStealer : Module("ChestStealer", Category.WORLD, hideModule = false)
             .mapIndexedNotNullTo(ArrayList(32)) { index, stack ->
                 stack ?: return@mapIndexedNotNullTo null
 
-                if (index in TickScheduler) return@mapIndexedNotNullTo null
+                if (isTicked(index)) return@mapIndexedNotNullTo null
 
                 val mergeableCount = mc.thePlayer.inventory.mainInventory.sumOf { otherStack ->
                     otherStack ?: return@sumOf 0

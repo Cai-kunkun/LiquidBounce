@@ -97,8 +97,8 @@ public abstract class MixinGuiInGame extends Gui {
 
                 List<float[]> gradientColors = ColorSettingsKt.toColorArray(hud.getBgGradColors(), hud.getMaxHotbarGradientColors());
 
-                GL11.glPushAttrib(GL_ALL_ATTRIB_BITS);
-                resetColor();
+                GL11.glPushMatrix();
+                GL11.glDisable(GL11.GL_DEPTH_TEST);
 
                 boolean isGradient = hud.getHotbarMode().equals("Gradient");
                 boolean isRainbow = hud.getHotbarMode().equals("Rainbow");
@@ -161,6 +161,9 @@ public abstract class MixinGuiInGame extends Gui {
                         hud.getRoundedHotbarRadius()
                 );
 
+                GL11.glEnable(GL11.GL_DEPTH_TEST);
+                GL11.glPopMatrix();
+
                 enableRescaleNormal();
                 glEnable(GL_BLEND);
                 tryBlendFuncSeparate(770, 771, 1, 0);
@@ -176,20 +179,18 @@ public abstract class MixinGuiInGame extends Gui {
                 disableRescaleNormal();
                 disableBlend();
 
-                GL11.glPopAttrib();
-
                 AWTFontRenderer.Companion.setAssumeNonVolatile(false);
 
                 ci.cancel();
             }
         }
 
-        liquidBounce$updateGarbageCollection(delta);
+        liquidBounce$injectRender2DEvent(delta);
     }
 
     @Inject(method = "renderTooltip", at = @At("RETURN"))
     private void renderTooltipPost(ScaledResolution sr, float delta, CallbackInfo callbackInfo) {
-        liquidBounce$updateGarbageCollection(delta);
+        liquidBounce$injectRender2DEvent(delta);
     }
 
     @Inject(method = "renderPumpkinOverlay", at = @At("HEAD"), cancellable = true)
@@ -208,12 +209,10 @@ public abstract class MixinGuiInGame extends Gui {
             callbackInfo.cancel();
     }
 
-
     @Unique
-    private void liquidBounce$updateGarbageCollection(float delta) {
+    private void liquidBounce$injectRender2DEvent(float delta) {
         if (!ClassUtils.INSTANCE.hasClass("net.labymod.api.LabyModAPI")) {
             EventManager.INSTANCE.call(new Render2DEvent(delta));
-            AWTFontRenderer.Companion.garbageCollectionTick();
         }
     }
 }

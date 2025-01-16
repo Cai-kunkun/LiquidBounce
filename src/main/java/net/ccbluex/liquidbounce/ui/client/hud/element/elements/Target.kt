@@ -15,6 +15,7 @@ import net.ccbluex.liquidbounce.ui.font.Fonts
 import net.ccbluex.liquidbounce.utils.attack.EntityUtils.getHealth
 import net.ccbluex.liquidbounce.utils.extensions.getDistanceToEntityBox
 import net.ccbluex.liquidbounce.utils.render.ColorUtils
+import net.ccbluex.liquidbounce.utils.render.ColorUtils.withAlpha
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.deltaTime
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.drawRect
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.drawRoundedBorderRect
@@ -30,6 +31,8 @@ import java.awt.Color
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.*
+import kotlin.collections.component1
+import kotlin.collections.component2
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -44,22 +47,13 @@ class Target : Element() {
 
     private val borderStrength by float("Border-Strength", 3F, 1F..5F)
 
-    private val backgroundMode by choices("Background-Color", arrayOf("Custom", "Rainbow"), "Custom")
-    private val backgroundRed by int("Background-R", 0, 0..255) { backgroundMode == "Custom" }
-    private val backgroundGreen by int("Background-G", 0, 0..255) { backgroundMode == "Custom" }
-    private val backgroundBlue by int("Background-B", 0, 0..255) { backgroundMode == "Custom" }
-    private val backgroundAlpha by int("Background-Alpha", 255, 0..255) { backgroundMode == "Custom" }
+    private val backgroundMode by choices("Background-ColorMode", arrayOf("Custom", "Rainbow"), "Custom")
+    private val backgroundColor by color("Background-Color", Color.BLACK.withAlpha(150)) { backgroundMode == "Custom" }
 
-    private val borderMode by choices("Border-Color", arrayOf("Custom", "Rainbow"), "Custom")
-    private val borderRed by int("Border-R", 0, 0..255) { borderMode == "Custom" }
-    private val borderGreen by int("Border-G", 0, 0..255) { borderMode == "Custom" }
-    private val borderBlue by int("Border-B", 0, 0..255) { borderMode == "Custom" }
-    private val borderAlpha by int("Border-Alpha", 255, 0..255) { borderMode == "Custom" }
+    private val borderMode by choices("Border-ColorMode", arrayOf("Custom", "Rainbow"), "Custom")
+    private val borderColor by color("Border-Color", Color.BLACK) { borderMode == "Custom" }
 
-    private val textRed by int("Text-R", 255, 0..255)
-    private val textGreen by int("Text-G", 255, 0..255)
-    private val textBlue by int("Text-B", 255, 0..255)
-    private val textAlpha by int("Text-Alpha", 255, 0..255)
+    private val textColor by color("TextColor", Color.WHITE)
 
     private val rainbowX by float("Rainbow-X", -1000F, -2000F..2000F) { backgroundMode == "Rainbow" }
     private val rainbowY by float("Rainbow-Y", -1000F, -2000F..2000F) { backgroundMode == "Rainbow" }
@@ -99,9 +93,15 @@ class Target : Element() {
         val target = KillAura.target ?: if (delayCounter >= vanishDelay) mc.thePlayer else lastTarget ?: mc.thePlayer
 
         assumeNonVolatile {
-            val shouldRender = (KillAura.handleEvents() && KillAura.target != null || mc.currentScreen is GuiChat)
+            val shouldRender = KillAura.handleEvents() && KillAura.target != null || mc.currentScreen is GuiChat
             val smoothMode = animation == "Smooth"
             val fadeMode = animation == "Fade"
+
+            var (textAlpha, borderAlpha) = if (fadeMode) {
+                intArrayOf(alphaText, alphaBorder)
+            } else {
+                intArrayOf(textColor.alpha, borderColor.alpha)
+            }
 
             val stringWidth = (40f + (target.name?.let(titleFont::getStringWidth) ?: 0)).coerceAtLeast(118F)
 
@@ -142,23 +142,26 @@ class Target : Element() {
                 if (smoothMode) {
                     val targetWidth = if (shouldRender) stringWidth else if (delayCounter >= vanishDelay) 0f else width
                     width =
-                        AnimationUtil.base(width.toDouble(), targetWidth.toDouble(), animationSpeed.toDouble()).toFloat()
+                        AnimationUtil.base(width.toDouble(), targetWidth.toDouble(), animationSpeed.toDouble())
+                            .toFloat()
                             .coerceAtLeast(0f)
 
                     val targetHeight = if (shouldRender) 40f else if (delayCounter >= vanishDelay) 0f else height
                     height =
-                        AnimationUtil.base(height.toDouble(), targetHeight.toDouble(), animationSpeed.toDouble()).toFloat()
+                        AnimationUtil.base(height.toDouble(), targetHeight.toDouble(), animationSpeed.toDouble())
+                            .toFloat()
                             .coerceAtLeast(0f)
                 } else {
                     width = stringWidth
                     height = 40f
 
                     val targetText = if (shouldRender) textAlpha else if (delayCounter >= vanishDelay) 0f else alphaText
-                    alphaText = AnimationUtil.base(alphaText.toDouble(), targetText.toDouble(), animationSpeed.toDouble())
-                        .roundToInt()
+                    alphaText =
+                        AnimationUtil.base(alphaText.toDouble(), targetText.toDouble(), animationSpeed.toDouble())
+                            .roundToInt()
 
                     val targetBackground = if (shouldRender) {
-                        backgroundAlpha
+                        backgroundColor.alpha
                     } else if (delayCounter >= vanishDelay) {
                         0f
                     } else alphaBackground
@@ -170,7 +173,7 @@ class Target : Element() {
                     ).roundToInt()
 
                     val targetBorder = if (shouldRender) {
-                        borderAlpha
+                        borderColor.alpha
                     } else if (delayCounter >= vanishDelay) {
                         0f
                     } else alphaBorder
@@ -178,22 +181,15 @@ class Target : Element() {
                     alphaBorder =
                         AnimationUtil.base(alphaBorder.toDouble(), targetBorder.toDouble(), animationSpeed.toDouble())
                             .roundToInt()
+
+                    borderAlpha = alphaBorder
+                    textAlpha = alphaText
                 }
 
-                val backgroundCustomColor = Color(
-                    backgroundRed,
-                    backgroundGreen,
-                    backgroundBlue,
-                    if (fadeMode) alphaBackground else backgroundAlpha
-                ).rgb
-
-                val borderCustomColor = Color(
-                    borderRed, borderGreen, borderBlue, if (fadeMode) {
-                        alphaBorder
-                    } else borderAlpha
-                ).rgb
-
-                val textCustomColor = Color(textRed, textGreen, textBlue, if (fadeMode) alphaText else textAlpha).rgb
+                val backgroundAlpha = if (fadeMode) alphaBackground else backgroundColor.alpha
+                val backgroundCustomColor = backgroundColor.withAlpha(backgroundAlpha).rgb
+                val borderCustomColor = borderColor.withAlpha(borderAlpha).rgb
+                val textCustomColor = textColor.withAlpha(textAlpha).rgb
 
                 val rainbowOffset = System.currentTimeMillis() % 10000 / 10000F
                 val rainbowX = if (rainbowX == 0f) 0f else 1f / rainbowX
@@ -204,7 +200,7 @@ class Target : Element() {
                 glEnable(GL_BLEND)
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-                if (fadeMode && shouldRender || smoothMode && shouldRender && width == width || delayCounter < vanishDelay) {
+                if (fadeMode && shouldRender || smoothMode && shouldRender || delayCounter < vanishDelay) {
                     // Draw rect box
                     RainbowShader.begin(backgroundMode == "Rainbow", rainbowX, rainbowY, rainbowOffset).use {
                         drawRoundedBorderRect(

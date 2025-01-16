@@ -36,7 +36,8 @@ object StaffDetector : Module("StaffDetector", Category.MISC, gameDetecting = fa
             "BlocksMC", "CubeCraft", "Gamster",
             "AgeraPvP", "HypeMC", "Hypixel",
             "SuperCraft", "PikaNetwork", "GommeHD",
-            "CoralMC", "LibreCraft"
+            "CoralMC", "LibreCraft", "Originera",
+            "OC-TC", "AssPixel"
         ), "BlocksMC"
     ) {
         override fun onUpdate(value: String) {
@@ -101,7 +102,10 @@ object StaffDetector : Module("StaffDetector", Category.MISC, gameDetecting = fa
         "pikanetwork" to "pika-network.net",
         "gommehd" to "gommehd.net",
         "coralmc" to "coralmc.it",
-        "librecraft" to "librecraft.com"
+        "librecraft" to "librecraft.com",
+        "originera" to "mc.orea.asia",
+        "oc-tc" to "oc.tc",
+        "asspixel" to "asspixel.net"
     )
 
     private fun loadStaffData() {
@@ -414,11 +418,11 @@ object StaffDetector : Module("StaffDetector", Category.MISC, gameDetecting = fa
 
     private fun loadStaffList(url: String): Map<String, Set<String>> {
         return try {
-            val (response, code) = HttpUtils.get(url)
+            val (response, code) = HttpUtils.requestStream(url)
 
             when (code) {
                 200 -> {
-                    val staffList = response.lineSequence()
+                    val staffList = response.bufferedReader().lineSequence()
                         .filter { it.isNotBlank() }
                         .map { it.trim() }
                         .toSet()

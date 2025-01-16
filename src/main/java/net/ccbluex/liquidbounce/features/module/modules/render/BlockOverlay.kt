@@ -7,8 +7,8 @@ package net.ccbluex.liquidbounce.features.module.modules.render
 
 import net.ccbluex.liquidbounce.config.boolean
 import net.ccbluex.liquidbounce.config.choices
+import net.ccbluex.liquidbounce.config.color
 import net.ccbluex.liquidbounce.config.float
-import net.ccbluex.liquidbounce.config.int
 import net.ccbluex.liquidbounce.event.Render2DEvent
 import net.ccbluex.liquidbounce.event.Render3DEvent
 import net.ccbluex.liquidbounce.event.handler
@@ -17,7 +17,6 @@ import net.ccbluex.liquidbounce.features.module.Module
 import net.ccbluex.liquidbounce.ui.font.Fonts
 import net.ccbluex.liquidbounce.utils.block.block
 import net.ccbluex.liquidbounce.utils.extensions.*
-import net.ccbluex.liquidbounce.utils.render.ColorUtils.rainbow
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.drawBorderedRect
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.drawFilledBox
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.drawSelectionBoundingBox
@@ -37,10 +36,7 @@ object BlockOverlay : Module("BlockOverlay", Category.RENDER, gameDetecting = fa
 
     val info by boolean("Info", false)
 
-    private val colorRainbow by boolean("Rainbow", false)
-    private val colorRed by int("R", 68, 0..255) { !colorRainbow }
-    private val colorGreen by int("G", 117, 0..255) { !colorRainbow }
-    private val colorBlue by int("B", 255, 0..255) { !colorRainbow }
+    private val color by color("Color", Color(68, 117, 255, 100))
 
     val currentBlock: BlockPos?
         get() {
@@ -62,10 +58,6 @@ object BlockOverlay : Module("BlockOverlay", Category.RENDER, gameDetecting = fa
         val blockPos = currentBlock ?: return@handler
 
         val block = blockPos.block ?: return@handler
-
-        val color = if (colorRainbow) {
-            rainbow(alpha = 0.4F)
-        } else Color(colorRed, colorGreen, colorBlue, (0.4F * 255).toInt())
 
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)

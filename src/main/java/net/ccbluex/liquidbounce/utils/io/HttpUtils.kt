@@ -5,6 +5,7 @@
  */
 package net.ccbluex.liquidbounce.utils.io
 
+import net.ccbluex.liquidbounce.utils.client.ClientUtils
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -25,16 +26,24 @@ import javax.net.ssl.X509TrustManager
  */
 object HttpUtils {
 
-    private const val DEFAULT_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    const val DEFAULT_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+    val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .followRedirects(true)
-        .sslSocketFactory(createTrustAllSslSocketFactory(), createTrustAllTrustManager())
-        .hostnameVerifier { _, _ -> true }
+        .applyBypassHttps()
         .build()
 
+    /**
+     * For legacy Java 8 versions like 8u51
+     */
+    @JvmStatic
+    fun OkHttpClient.Builder.applyBypassHttps() = this
+        .sslSocketFactory(createTrustAllSslSocketFactory(), createTrustAllTrustManager())
+        .hostnameVerifier { _, _ -> true }
+
+    @JvmStatic
     private fun createTrustAllSslSocketFactory(): SSLSocketFactory {
         val trustAllCerts = arrayOf(createTrustAllTrustManager())
         val sslContext = SSLContext.getInstance("TLS")
@@ -42,6 +51,7 @@ object HttpUtils {
         return sslContext.socketFactory
     }
 
+    @JvmStatic
     private fun createTrustAllTrustManager(): X509TrustManager {
         return object : X509TrustManager {
             override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
@@ -71,7 +81,7 @@ object HttpUtils {
 
     fun requestStream(
         url: String,
-        method: String,
+        method: String = "GET",
         agent: String = DEFAULT_AGENT,
         headers: Array<Pair<String, String>> = emptyArray(),
         body: RequestBody? = null
@@ -83,10 +93,10 @@ object HttpUtils {
             throw IOException("Unexpected code ${response.code}")
         }
 
-        return response.body?.byteStream()!! to response.code
+        return response.body!!.byteStream() to response.code
     }
 
-    fun request(
+    private fun request(
         url: String,
         method: String,
         agent: String = DEFAULT_AGENT,
@@ -102,6 +112,16 @@ object HttpUtils {
 
     fun get(url: String, agent: String = DEFAULT_AGENT, headers: Array<Pair<String, String>> = emptyArray()): Pair<String, Int> {
         return request(url, "GET", agent, headers)
+    }
+
+    inline fun <reified T> getJson(url: String): T? {
+        return runCatching {
+            httpClient.newCall(Request.Builder().url(url).build()).execute().use {
+                it.body?.charStream()?.decodeJson<T>()
+            }
+        }.onFailure {
+            ClientUtils.LOGGER.error("[HTTP] Failed to GET JSON from $url", it)
+        }.getOrNull()
     }
 
     fun post(

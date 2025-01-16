@@ -53,18 +53,13 @@ object FlagCheck : Module("FlagCheck", Category.MISC, gameDetecting = true, hide
 
     private val colors = ColorSettingsInteger(
         this,
-        "Text",
-        zeroAlphaCheck = true,
-        alphaApply = { true },
+        "TextColor",
         applyMax = true
     ) { renderServerPos == "Box" }
 
     private val boxColors = ColorSettingsInteger(
         this,
-        "Box",
-        zeroAlphaCheck = true,
-        alphaApply = { true },
-        withAlpha = false
+        "BoxColor",
     ) { renderServerPos == "Box" }.with(r = 255, g = 255)
 
     private val scale by float("Scale", 1F, 1F..6F) { renderServerPos == "Box" }
@@ -194,7 +189,7 @@ object FlagCheck : Module("FlagCheck", Category.MISC, gameDetecting = true, hide
                 blockPlacementAttempts.entries.removeIf { (blockPos, timestamp) ->
                     if (currentTime - timestamp > ghostBlockDelay) {
                         // Returns if blockpos is < 0
-                        if (blockPos < BlockPos(0, 0, 0)) return@removeIf false
+                        if (blockPos < BlockPos.ORIGIN) return@removeIf false
                         val block = world.getBlockState(blockPos).block
 
                         if (block == Blocks.air && successfulPlacements.contains(blockPos)) {

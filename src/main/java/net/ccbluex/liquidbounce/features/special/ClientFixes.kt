@@ -28,11 +28,12 @@ object ClientFixes : MinecraftInstance, Listenable {
 
     var clientBrand = "Vanilla"
 
-    var possibleBrands = arrayOf(
+    val possibleBrands = arrayOf(
         "Vanilla",
         "Forge",
         "LunarClient",
         "CheatBreaker",
+        "LabyMod",
         "Geyser"
     )
 
@@ -50,15 +51,17 @@ object ClientFixes : MinecraftInstance, Listenable {
                     return@runCatching
                 }
 
-                packet is C17PacketCustomPayload -> {
-                    if (blockPayloadPackets && !packet.channelName.startsWith("MC|")) {
+                packet is C17PacketCustomPayload -> when {
+                    blockPayloadPackets && !packet.channelName.startsWith("MC|") -> {
                         event.cancelEvent()
-                    } else if (packet.channelName == "MC|Brand") {
+                    }
+                    packet.channelName == "MC|Brand" -> {
                         packet.data = PacketBuffer(Unpooled.buffer()).writeString(
                             when (clientBrand) {
                                 "Vanilla" -> "vanilla"
-                                "LunarClient" -> "lunarclient:v2.18.2-2449"
+                                "LunarClient" -> "lunarclient:v2.18.2-2452"
                                 "CheatBreaker" -> "CB"
+                                "LabyMod" -> "labymod"
                                 "Geyser" -> "geyser"
                                 else -> {
                                     // do nothing

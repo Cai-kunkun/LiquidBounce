@@ -33,7 +33,6 @@ import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.multiplayer.PlayerControllerMP;
-import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.crash.CrashReport;
@@ -55,8 +54,9 @@ import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.nio.ByteBuffer;
-import java.time.LocalDateTime;
 import java.util.Queue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import static net.ccbluex.liquidbounce.utils.client.MinecraftInstance.mc;
 
@@ -100,11 +100,16 @@ public abstract class MixinMinecraft {
     @Shadow
     public abstract void displayGuiScreen(GuiScreen guiScreenIn);
 
+    @Unique
+    private Future<?> liquidBounce$preloadFuture;
+
     @Inject(method = "run", at = @At("HEAD"))
     private void init(CallbackInfo callbackInfo) {
         if (displayWidth < 1067) displayWidth = 1067;
 
         if (displayHeight < 622) displayHeight = 622;
+
+        liquidBounce$preloadFuture = LiquidBounce.INSTANCE.preload();
     }
 
     @Inject(method = "runGameLoop", at = @At(value = "INVOKE", target = "Lnet/minecraft/profiler/Profiler;startSection(Ljava/lang/String;)V", ordinal = 1))
@@ -113,7 +118,9 @@ public abstract class MixinMinecraft {
     }
 
     @Inject(method = "startGame", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;checkGLError(Ljava/lang/String;)V", ordinal = 2, shift = At.Shift.AFTER))
-    private void startGame(CallbackInfo callbackInfo) {
+    private void startGame(CallbackInfo callbackInfo) throws ExecutionException, InterruptedException {
+        liquidBounce$preloadFuture.get();
+
         LiquidBounce.INSTANCE.startClient();
     }
 
@@ -202,8 +209,9 @@ public abstract class MixinMinecraft {
 
     @Inject(method = "sendClickBlockToController", at = @At(value = "INVOKE", target = "Lnet/minecraft/util/MovingObjectPosition;getBlockPos()Lnet/minecraft/util/BlockPos;"))
     private void onClickBlock(CallbackInfo callbackInfo) {
-        if (leftClickCounter == 0 && theWorld.getBlockState(objectMouseOver.getBlockPos()).getBlock().getMaterial() != Material.air) {
-            EventManager.INSTANCE.call(new ClickBlockEvent(objectMouseOver.getBlockPos(), objectMouseOver.sideHit));
+        final BlockPos blockPos = objectMouseOver.getBlockPos();
+        if (leftClickCounter == 0 && theWorld.getBlockState(blockPos).getBlock().getMaterial() != Material.air) {
+            EventManager.INSTANCE.call(new ClickBlockEvent(blockPos, objectMouseOver.sideHit));
         }
     }
 
@@ -227,23 +235,7 @@ public abstract class MixinMinecraft {
 
     @Inject(method = "displayCrashReport", at = @At(value = "INVOKE", target = "Lnet/minecraftforge/fml/common/FMLCommonHandler;instance()Lnet/minecraftforge/fml/common/FMLCommonHandler;"))
     private void injectDisplayCrashReport(CrashReport crashReport, CallbackInfo callbackInfo) {
-        final StringBuilder crashInfo = new StringBuilder(LiquidBounce.CLIENT_NAME).append(" crash info\n");
-        crashInfo.append("Client version: ").append(LiquidBounce.INSTANCE.getClientVersionText()).append(' ').append(LiquidBounce.INSTANCE.getClientCommit()).append('\n');
-        crashInfo.append("Time: ").append(LocalDateTime.now()).append('\n');
-        crashInfo.append("Operating System: ").append(System.getProperty("os.name"))
-                .append(" (Version: ").append(System.getProperty("os.version")).append(", Arch: ")
-                .append(System.getProperty("os.arch")).append(")\n");
-        crashInfo.append("Java Version: ").append(System.getProperty("java.version"))
-                .append(" (Vendor: ").append(System.getProperty("java.vendor")).append(")\n");
-        if (mc.getCurrentServerData() != null) {
-            ServerData serverData = mc.getCurrentServerData();
-            crashInfo.append("\nServer Information:\n");
-            crashInfo.append(" - Server Address: ").append(serverData.serverIP).append("\n");
-            crashInfo.append(" - Server Version: ").append(serverData.gameVersion).append("\n");
-        }
-        crashInfo.append('\n');
-        MiscUtils.showErrorPopup(crashReport.getCrashCause(), "Game crashed! ", crashInfo.toString());
-        MiscUtils.showURL(LiquidBounce.CLIENT_GITHUB + "/issues");
+        MiscUtils.showErrorPopup(crashReport.getCrashCause(), "Game crashed! ", MiscUtils.generateCrashInfo());
     }
 
     @Inject(method = "clickMouse", at = @At("HEAD"))
@@ -299,8 +291,7 @@ public abstract class MixinMinecraft {
     private boolean injectMultiActions(EntityPlayerSP instance) {
         ItemStack itemStack = instance.itemInUse;
 
-        if (MultiActions.INSTANCE.handleEvents())
-            itemStack = null;
+        if (MultiActions.INSTANCE.handleEvents()) itemStack = null;
 
         return itemStack != null;
     }

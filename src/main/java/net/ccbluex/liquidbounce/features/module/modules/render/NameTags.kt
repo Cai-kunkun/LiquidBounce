@@ -15,8 +15,10 @@ import net.ccbluex.liquidbounce.ui.font.Fonts
 import net.ccbluex.liquidbounce.utils.attack.EntityUtils.getHealth
 import net.ccbluex.liquidbounce.utils.attack.EntityUtils.isLookingOnEntities
 import net.ccbluex.liquidbounce.utils.attack.EntityUtils.isSelected
+import net.ccbluex.liquidbounce.utils.client.EntityLookup
 import net.ccbluex.liquidbounce.utils.extensions.*
 import net.ccbluex.liquidbounce.utils.render.ColorUtils
+import net.ccbluex.liquidbounce.utils.render.ColorUtils.withAlpha
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.disableGlCap
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.drawTexturedModalRect
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.enableGlCap
@@ -65,16 +67,10 @@ object NameTags : Module("NameTags", Category.RENDER, hideModule = false) {
     private val fontShadow by boolean("Shadow", true)
 
     private val background by boolean("Background", true)
-    private val backgroundColorRed by int("Background-R", 0, 0..255) { background }
-    private val backgroundColorGreen by int("Background-G", 0, 0..255) { background }
-    private val backgroundColorBlue by int("Background-B", 0, 0..255) { background }
-    private val backgroundColorAlpha by int("Background-Alpha", 70, 0..255) { background }
+    private val backgroundColor by color("BackgroundColor", Color.BLACK.withAlpha(70)) { background }
 
     private val border by boolean("Border", true)
-    private val borderColorRed by int("Border-R", 0, 0..255) { border }
-    private val borderColorGreen by int("Border-G", 0, 0..255) { border }
-    private val borderColorBlue by int("Border-B", 0, 0..255) { border }
-    private val borderColorAlpha by int("Border-Alpha", 100, 0..255) { border }
+    private val borderColor by color("BorderColor", Color.BLACK.withAlpha(100)) { border }
 
     private val maxRenderDistance by object : IntegerValue("MaxRenderDistance", 100, 1..200) {
         override fun onUpdate(value: Int) {
@@ -95,8 +91,12 @@ object NameTags : Module("NameTags", Category.RENDER, hideModule = false) {
     private val inventoryBackground = ResourceLocation("textures/gui/container/inventory.png")
     private val decimalFormat = DecimalFormat("##0.00", DecimalFormatSymbols(Locale.ENGLISH))
 
+    private val entities by EntityLookup<EntityLivingBase>()
+        .filter { bot || !isBot(it) }
+        .filter { !onLook || isLookingOnEntities(it, maxAngleDifference.toDouble()) }
+        .filter { thruBlocks || isEntityHeightVisible(it) }
 
-    val onRender3D = handler<Render3DEvent> { event ->
+    val onRender3D = handler<Render3DEvent> {
         if (mc.theWorld == null || mc.thePlayer == null) return@handler
 
         glPushAttrib(GL_ENABLE_BIT)
@@ -112,20 +112,13 @@ object NameTags : Module("NameTags", Category.RENDER, hideModule = false) {
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-        for (entity in mc.theWorld.loadedEntityList) {
-            if (entity !is EntityLivingBase) continue
-
+        for (entity in entities) {
             val isRenderingSelf =
                 entity is EntityPlayerSP && (mc.gameSettings.thirdPersonView != 0 || FreeCam.handleEvents())
 
             if (!isRenderingSelf || !renderSelf) {
                 if (!isSelected(entity, false)) continue
             }
-
-            if (isBot(entity) && !bot) continue
-            if (onLook && !isLookingOnEntities(entity, maxAngleDifference.toDouble())) continue
-
-            if (!thruBlocks && !isEntityHeightVisible(entity)) continue
 
             val name = entity.displayName.unformattedText ?: continue
 
@@ -225,13 +218,11 @@ object NameTags : Module("NameTags", Category.RENDER, hideModule = false) {
 
         val bgColor = if (background) {
             // Background
-            Color(backgroundColorRed, backgroundColorGreen, backgroundColorBlue, backgroundColorAlpha)
+            backgroundColor
         } else {
             // Transparent
             Color(0, 0, 0, 0)
         }
-
-        val borderColor = Color(borderColorRed, borderColorGreen, borderColorBlue, borderColorAlpha)
 
         if (border) quickDrawBorderedRect(
             -width - 2F,
@@ -273,8 +264,7 @@ object NameTags : Module("NameTags", Category.RENDER, hideModule = false) {
 
         if (potion && entity is EntityPlayer) {
             val potions =
-                entity.activePotionEffects.map { Potion.potionTypes[it.potionID] }
-                    .filter { it.hasStatusIcon() }
+                entity.activePotionEffects.map { Potion.potionTypes[it.potionID] }.filter { it.hasStatusIcon() }
             if (potions.isNotEmpty()) {
                 foundPotion = true
 

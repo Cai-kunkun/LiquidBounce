@@ -5,7 +5,6 @@
  */
 package net.ccbluex.liquidbounce.ui.client.altmanager
 
-import com.google.gson.JsonParser
 import com.thealtening.AltService
 import kotlinx.coroutines.launch
 import me.liuli.elixir.account.CrackedAccount
@@ -26,7 +25,8 @@ import net.ccbluex.liquidbounce.ui.font.AWTFontRenderer.Companion.assumeNonVolat
 import net.ccbluex.liquidbounce.ui.font.Fonts
 import net.ccbluex.liquidbounce.utils.client.ClientUtils.LOGGER
 import net.ccbluex.liquidbounce.utils.client.MinecraftInstance.Companion.mc
-import net.ccbluex.liquidbounce.utils.io.HttpUtils.get
+import net.ccbluex.liquidbounce.utils.io.FileFilters
+import net.ccbluex.liquidbounce.utils.io.HttpUtils
 import net.ccbluex.liquidbounce.utils.io.MiscUtils
 import net.ccbluex.liquidbounce.utils.kotlin.RandomUtils.randomAccount
 import net.ccbluex.liquidbounce.utils.kotlin.SharedScopes
@@ -70,7 +70,6 @@ class GuiAltManager(private val prevGui: GuiScreen) : AbstractScreen() {
 
             scrollBy(mightBeTheCurrentAccount * altsList.getSlotHeight())
         }
-
 
         // Setup buttons
 
@@ -193,10 +192,10 @@ class GuiAltManager(private val prevGui: GuiScreen) : AbstractScreen() {
             }
 
             7 -> { // Import button
-                val file = MiscUtils.openFileChooser() ?: return
+                val file = MiscUtils.openFileChooser(FileFilters.TEXT) ?: return
 
                 file.forEachLine {
-                    val accountData = it.split(":", limit = 2)
+                    val accountData = it.split(':', limit = 2)
                     if (accountData.size > 1) {
                         // Most likely a mojang account
                         accountsConfig.addMojangAccount(accountData[0], accountData[1])
@@ -422,16 +421,7 @@ class GuiAltManager(private val prevGui: GuiScreen) : AbstractScreen() {
         fun loadActiveGenerators() {
             try {
                 // Read versions json from cloud
-                val (response, _) = get("$CLIENT_CLOUD/generators.json")
-                val jsonElement = JsonParser().parse(response)
-
-                // Check json is valid object
-                if (jsonElement.isJsonObject) {
-                    // Get json object of element
-                    jsonElement.asJsonObject.entrySet().forEach { (key, value) ->
-                        activeGenerators[key] = value.asBoolean
-                    }
-                }
+                activeGenerators += HttpUtils.getJson<Map<String, Boolean>>("$CLIENT_CLOUD/generators.json")!!
             } catch (throwable: Throwable) {
                 // Print throwable to console
                 LOGGER.error("Failed to load enabled generators.", throwable)

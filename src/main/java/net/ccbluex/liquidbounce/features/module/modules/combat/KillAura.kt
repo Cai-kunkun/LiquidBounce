@@ -52,6 +52,7 @@ import net.ccbluex.liquidbounce.utils.rotation.RotationUtils.setTargetRotation
 import net.ccbluex.liquidbounce.utils.rotation.RotationUtils.toRotation
 import net.ccbluex.liquidbounce.utils.simulation.SimulatedPlayer
 import net.ccbluex.liquidbounce.utils.timing.MSTimer
+import net.ccbluex.liquidbounce.utils.timing.TickedActions.nextTick
 import net.ccbluex.liquidbounce.utils.timing.TimeUtils.randomClickDelay
 import net.minecraft.client.gui.inventory.GuiContainer
 import net.minecraft.enchantment.EnchantmentHelper
@@ -105,6 +106,9 @@ object KillAura : Module("KillAura", Category.COMBAT, Keyboard.KEY_R, hideModule
     }
 
     private val hurtTime by int("HurtTime", 10, 0..10) { !simulateCooldown }
+
+    private val activationSlot by boolean("ActivationSlot", false)
+    private val preferredSlot by int("PreferredSlot", 1, 1..9) { activationSlot }
 
     private val clickOnly by boolean("ClickOnly", false)
 
@@ -229,6 +233,8 @@ object KillAura : Module("KillAura", Category.COMBAT, Keyboard.KEY_R, hideModule
     private val useHitDelay by boolean("UseHitDelay", false)
     private val hitDelayTicks by int("HitDelayTicks", 1, 1..5) { useHitDelay }
 
+    private val generateSpotBasedOnDistance by boolean("GenerateSpotBasedOnDistance", false) { options.rotationsActive }
+
     private val randomization = RandomizationSettings(this) { options.rotationsActive }
     private val outborder by boolean("Outborder", false) { options.rotationsActive }
 
@@ -318,8 +324,8 @@ object KillAura : Module("KillAura", Category.COMBAT, Keyboard.KEY_R, hideModule
     private val circleRainbow by boolean("CircleRainbow", false, subjective = true) { mark == "Circle" }
     private val colors = ColorSettingsInteger(
         this,
-        "Circle",
-        alphaApply = { mark == "Circle" }) { mark == "Circle" && !circleRainbow }.with(132, 102, 255, 100)
+        "CircleColor"
+    ) { mark == "Circle" && !circleRainbow }.with(132, 102, 255, 100)
     private val fillInnerCircle by boolean("FillInnerCircle", false, subjective = true) { mark == "Circle" }
     private val withHeight by boolean("WithHeight", true, subjective = true) { mark == "Circle" }
     private val animateHeight by boolean("AnimateHeight", false, subjective = true) { withHeight }
@@ -686,7 +692,7 @@ object KillAura : Module("KillAura", Category.COMBAT, Keyboard.KEY_R, hideModule
                          * Since we want to simulate proper clicking behavior, we schedule the block break progress stop
                          * in the next tick, since that is a doable action by the average player.
                          */
-                        TickScheduler += {
+                        nextTick {
                             mc.sendClickBlockToController(false)
 
                             // Swings are sent a tick after stopping the block break progress.
@@ -881,11 +887,14 @@ object KillAura : Module("KillAura", Category.COMBAT, Keyboard.KEY_R, hideModule
         val boundingBox = entity.hitBox.offset(prediction)
         val (currPos, oldPos) = player.currPos to player.prevPos
 
-        val simPlayer = SimulatedPlayer.fromClientPlayer(player.movementInput)
+        val simPlayer =
+            SimulatedPlayer.fromClientPlayer(RotationUtils.modifiedInput)
+
+        simPlayer.rotationYaw = (currentRotation ?: player.rotation).yaw
 
         var pos = currPos
 
-        (0..predictClientMovement + 1).forEach { i ->
+        repeat(predictClientMovement) {
             val previousPos = simPlayer.pos
 
             simPlayer.tick()
@@ -903,7 +912,7 @@ object KillAura : Module("KillAura", Category.COMBAT, Keyboard.KEY_R, hideModule
                 pos = simPlayer.pos
 
                 if (currDist <= range && currDist <= prevDist) {
-                    return@forEach
+                    return@repeat
                 }
             }
 
@@ -914,6 +923,7 @@ object KillAura : Module("KillAura", Category.COMBAT, Keyboard.KEY_R, hideModule
 
         val rotation = searchCenter(
             boundingBox,
+            generateSpotBasedOnDistance,
             outborder && !attackTimer.hasTimePassed(attackDelay / 2),
             randomization,
             predict = false,
@@ -1194,6 +1204,9 @@ object KillAura : Module("KillAura", Category.COMBAT, Keyboard.KEY_R, hideModule
         !onScaffold && (Scaffold.handleEvents() && (Scaffold.placeRotation != null || currentRotation != null) || Tower.handleEvents() && Tower.isTowering) -> true
 
         !onDestroyBlock && (Fucker.handleEvents() && !Fucker.noHit && Fucker.pos != null || Nuker.handleEvents()) -> true
+
+        activationSlot && SilentHotbar.currentSlot != preferredSlot - 1 -> true
+
         else -> false
     }
 
