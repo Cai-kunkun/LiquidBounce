@@ -230,12 +230,8 @@ object LiquidBounceStyle : Style() {
                             yPos += 22
                         }
 
-                        is IntegerValue -> {
-                            val text = value.name + "§f: §c" + if (value is BlockValue) {
-                                getBlockName(value.get()) + " (" + value.get() + ")"
-                            } else {
-                                value.get()
-                            } + " §8${suffix}"
+                        is BlockValue -> {
+                            val text = value.name + "§f: §c" + getBlockName(value.get()) + " (" + value.get() + ")" + " §8$suffix"
 
                             moduleElement.settingsWidth = font35.getStringWidth(text) + 8
 
@@ -265,31 +261,85 @@ object LiquidBounceStyle : Style() {
                             yPos += 22
                         }
 
-                        is IntegerRangeValue -> {
-                            val slider1 = value.get().first
-                            val slider2 = value.get().last
+                        is IntValue -> {
+                            val text = value.name + "§f: §c" + value.get() + " §8$suffix"
 
-                            val text = "${value.name}§f: §c$slider1 §f- §c$slider2 §8${suffix}§c (Beta)"
                             moduleElement.settingsWidth = font35.getStringWidth(text) + 8
 
                             if (mouseButton == 0 && mouseX in minX..maxX && mouseY in yPos + 15..yPos + 21 || sliderValueHeld == value) {
-                                val slider1Pos =
-                                    minX + ((slider1 - value.minimum).toFloat() / (value.maximum - value.minimum)) * (maxX - minX)
-                                val slider2Pos =
-                                    minX + ((slider2 - value.minimum).toFloat() / (value.maximum - value.minimum)) * (maxX - minX)
+                                val percentage = (mouseX - minX - 4) / (maxX - minX - 8).toFloat()
+                                value.setAndSaveValueOnButtonRelease(
+                                    (value.minimum + (value.maximum - value.minimum) * percentage).roundToInt()
+                                        .coerceIn(value.range)
+                                )
 
-                                val distToSlider1 = mouseX - slider1Pos
-                                val distToSlider2 = mouseX - slider2Pos
+                                // Keep changing this slider until mouse is unpressed.
+                                sliderValueHeld = value
 
-                                val percentage = (mouseX - minX - 4F) / (maxX - minX - 8F)
+                                // Stop rendering and interacting only when this event was triggered by a mouse click.
+                                if (mouseButton == 0) return true
+                            }
 
-                                if (abs(distToSlider1) <= abs(distToSlider2) && distToSlider2 <= 0) {
+                            drawRect(minX + 4, yPos + 18, maxX - 4, yPos + 19, Int.MAX_VALUE)
+
+                            val displayValue = value.get().coerceIn(value.range)
+                            val sliderValue =
+                                moduleElement.x + moduleElement.width + (moduleElement.settingsWidth - 12) * (displayValue - value.minimum) / (value.maximum - value.minimum)
+                            drawRect(8 + sliderValue, yPos + 15, sliderValue + 11, yPos + 21, guiColor)
+
+                            font35.drawString(text, minX + 2, yPos + 4, Color.WHITE.rgb)
+
+                            yPos += 22
+                        }
+
+                        is IntRangeValue -> {
+                            val slider1 = value.get().first
+                            val slider2 = value.get().last
+
+                            val text = "${value.name}§f: §c$slider1 §f- §c$slider2 §8${suffix}"
+                            moduleElement.settingsWidth = font35.getStringWidth(text) + 8
+
+                            val startX = minX + 4
+                            val startY = yPos + 14
+                            val width = moduleElement.settingsWidth - 12
+
+                            val endX = startX + width
+
+                            val currSlider = value.lastChosenSlider
+
+                            if (mouseButton == 0 && mouseX in startX..endX && mouseY in startY - 2..startY + 7 || sliderValueHeld == value) {
+                                val leftSliderPos =
+                                    startX + (slider1 - value.minimum).toFloat() / (value.maximum - value.minimum) * (endX - startX)
+                                val rightSliderPos =
+                                    startX + (slider2 - value.minimum).toFloat() / (value.maximum - value.minimum) * (endX - startX)
+
+                                val distToSlider1 = mouseX - leftSliderPos
+                                val distToSlider2 = mouseX - rightSliderPos
+
+                                val closerToLeft = abs(distToSlider1) < abs(distToSlider2)
+
+                                val isOnLeftSlider =
+                                    (mouseX.toFloat() in startX.toFloat()..leftSliderPos || closerToLeft) && rightSliderPos > startX
+                                val isOnRightSlider =
+                                    (mouseX.toFloat() in rightSliderPos..endX.toFloat() || !closerToLeft) && leftSliderPos < endX
+
+                                val percentage = (mouseX.toFloat() - startX) / (endX - startX)
+
+                                if (isOnLeftSlider && currSlider == null || currSlider == RangeSlider.LEFT) {
                                     withDelayedSave {
-                                        value.setFirst(value.lerpWith(percentage).coerceIn(value.minimum, slider2), false)
+                                        value.setFirst(
+                                            value.lerpWith(percentage).coerceIn(value.minimum, slider2),
+                                            false
+                                        )
                                     }
-                                } else {
+                                }
+
+                                if (isOnRightSlider && currSlider == null || currSlider == RangeSlider.RIGHT) {
                                     withDelayedSave {
-                                        value.setLast(value.lerpWith(percentage).coerceIn(slider1, value.maximum), false)
+                                        value.setLast(
+                                            value.lerpWith(percentage).coerceIn(slider1, value.maximum),
+                                            false
+                                        )
                                     }
                                 }
 
@@ -297,7 +347,14 @@ object LiquidBounceStyle : Style() {
                                 sliderValueHeld = value
 
                                 // Stop rendering and interacting only when this event was triggered by a mouse click.
-                                if (mouseButton == 0) return true
+                                if (mouseButton == 0) {
+                                    value.lastChosenSlider = when {
+                                        isOnLeftSlider -> RangeSlider.LEFT
+                                        isOnRightSlider -> RangeSlider.RIGHT
+                                        else -> null
+                                    }
+                                    return true
+                                }
                             }
 
                             drawRect(minX + 4, yPos + 18, maxX - 4, yPos + 19, Int.MAX_VALUE)
@@ -323,27 +380,50 @@ object LiquidBounceStyle : Style() {
                             val slider2 = value.get().endInclusive
 
                             val text =
-                                "${value.name}§f: §c${round(slider1)} §f- §c${round(slider2)} §8${suffix}§c (Beta)"
+                                "${value.name}§f: §c${round(slider1)} §f- §c${round(slider2)} §8${suffix}"
                             moduleElement.settingsWidth = font35.getStringWidth(text) + 8
 
-                            if (mouseButton == 0 && mouseX in minX..maxX && mouseY in yPos + 15..yPos + 21 || sliderValueHeld == value) {
-                                val slider1Pos =
-                                    minX + (slider1 - value.minimum) / (value.maximum - value.minimum) * (maxX - minX)
-                                val slider2Pos =
-                                    minX + ((slider2 - value.minimum) / (value.maximum - value.minimum)) * (maxX - minX)
+                            val startX = minX + 4
+                            val startY = yPos + 14
+                            val width = moduleElement.settingsWidth - 12
 
-                                val distToSlider1 = mouseX - slider1Pos
-                                val distToSlider2 = mouseX - slider2Pos
+                            val endX = startX + width
 
-                                val percentage = (mouseX - minX - 4F) / (maxX - minX - 8F)
+                            val currSlider = value.lastChosenSlider
 
-                                if (abs(distToSlider1) <= abs(distToSlider2) && distToSlider2 <= 0) {
+                            if (mouseButton == 0 && mouseX in startX..endX && mouseY in startY - 2..startY + 7 || sliderValueHeld == value) {
+                                val leftSliderPos =
+                                    startX + (slider1 - value.minimum) / (value.maximum - value.minimum) * (endX - startX)
+                                val rightSliderPos =
+                                    startX + (slider2 - value.minimum) / (value.maximum - value.minimum) * (endX - startX)
+
+                                val distToSlider1 = mouseX - leftSliderPos
+                                val distToSlider2 = mouseX - rightSliderPos
+
+                                val closerToLeft = abs(distToSlider1) < abs(distToSlider2)
+
+                                val isOnLeftSlider =
+                                    (mouseX.toFloat() in startX.toFloat()..leftSliderPos || closerToLeft) && rightSliderPos > startX
+                                val isOnRightSlider =
+                                    (mouseX.toFloat() in rightSliderPos..endX.toFloat() || !closerToLeft) && leftSliderPos < endX
+
+                                val percentage = (mouseX.toFloat() - startX) / (endX - startX)
+
+                                if (isOnLeftSlider && currSlider == null || currSlider == RangeSlider.LEFT) {
                                     withDelayedSave {
-                                        value.setFirst(value.lerpWith(percentage).coerceIn(value.minimum, slider2), false)
+                                        value.setFirst(
+                                            value.lerpWith(percentage).coerceIn(value.minimum, slider2),
+                                            false
+                                        )
                                     }
-                                } else {
+                                }
+
+                                if (isOnRightSlider && currSlider == null || currSlider == RangeSlider.RIGHT) {
                                     withDelayedSave {
-                                        value.setLast(value.lerpWith(percentage).coerceIn(slider1, value.maximum), false)
+                                        value.setLast(
+                                            value.lerpWith(percentage).coerceIn(slider1, value.maximum),
+                                            false
+                                        )
                                     }
                                 }
 
@@ -351,7 +431,14 @@ object LiquidBounceStyle : Style() {
                                 sliderValueHeld = value
 
                                 // Stop rendering and interacting only when this event was triggered by a mouse click.
-                                if (mouseButton == 0) return true
+                                if (mouseButton == 0) {
+                                    value.lastChosenSlider = when {
+                                        isOnLeftSlider -> RangeSlider.LEFT
+                                        isOnRightSlider -> RangeSlider.RIGHT
+                                        else -> null
+                                    }
+                                    return true
+                                }
                             }
 
                             drawRect(minX + 4, yPos + 18, maxX - 4, yPos + 19, Int.MAX_VALUE)

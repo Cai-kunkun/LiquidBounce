@@ -342,7 +342,7 @@ object RotationUtils : MinecraftInstance, Listenable {
     ): Rotation {
         val (hSpeed, vSpeed) = if (settings.instant) {
             180f to 180f
-        } else settings.horizontalSpeed.random() to settings.verticalSpeed.random()
+        } else settings.horizontalSpeed to settings.verticalSpeed
 
         return performAngleChange(
             currentRotation,
@@ -764,7 +764,7 @@ object RotationUtils : MinecraftInstance, Listenable {
 
         companion object {
             fun fromString(point: String): BodyPoint {
-                return values().find { it.name.equals(point, ignoreCase = true) } ?: UNKNOWN
+                return entries.find { it.name.equals(point, ignoreCase = true) } ?: UNKNOWN
             }
         }
     }

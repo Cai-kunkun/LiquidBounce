@@ -5,10 +5,6 @@
  */
 package net.ccbluex.liquidbounce.ui.client.hud.element.elements
 
-import com.google.gson.JsonElement
-import net.ccbluex.liquidbounce.config.TextValue
-import net.ccbluex.liquidbounce.config.boolean
-import net.ccbluex.liquidbounce.config.color
 import net.ccbluex.liquidbounce.ui.client.hud.element.Border
 import net.ccbluex.liquidbounce.ui.client.hud.element.Element
 import net.ccbluex.liquidbounce.ui.client.hud.element.ElementInfo
@@ -24,17 +20,19 @@ import java.io.File
 import java.util.*
 import javax.imageio.ImageIO
 
-
 /**
  * CustomHUD image element
  *
  * Draw custom image
  */
 @ElementInfo(name = "Image")
-class Image : Element() {
+class Image : Element("Image") {
 
+    private val color by color("Color", Color.WHITE)
     private val shadow by boolean("Shadow", true)
-    private val shadowColor by color("Color", Color.BLACK.withAlpha(128)) { shadow }
+    private val xDistance by float("ShadowXDistance", 1.0F, -2F..2F) { shadow }
+    private val yDistance by float("ShadowYDistance", 1.0F, -2F..2F) { shadow }
+    private val shadowColor by color("ShadowColor", Color.BLACK.withAlpha(128)) { shadow }
 
     companion object {
 
@@ -52,24 +50,11 @@ class Image : Element() {
 
     }
 
-    private val image = object : TextValue("Image", "") {
+    private val image = text("Image", "").onChanged { value ->
+        if (value.isBlank())
+            return@onChanged
 
-        override fun fromJson(element: JsonElement) {
-            super.fromJson(element)
-
-            if (get().isEmpty())
-                return
-
-            setImage(get())
-        }
-
-        override fun onChanged(oldValue: String, newValue: String) {
-            if (get().isEmpty())
-                return
-
-            setImage(get())
-        }
-
+        setImage(value)
     }
 
     private val resourceLocation = ResourceLocation(randomNumber(128))
@@ -81,10 +66,10 @@ class Image : Element() {
      */
     override fun drawElement(): Border {
         if (shadow) {
-            drawImage(resourceLocation, 1, 1, width / 2, height / 2, shadowColor)
+            drawImage(resourceLocation, xDistance, yDistance, width / 2, height / 2, shadowColor)
         }
 
-        drawImage(resourceLocation, 0, 0, width / 2, height / 2)
+        drawImage(resourceLocation, 0, 0, width / 2, height / 2, color)
 
         return Border(0F, 0F, width / 2F, height / 2F)
     }
@@ -93,12 +78,12 @@ class Image : Element() {
         val file = MiscUtils.openFileChooser(FileFilters.ALL_IMAGES, acceptAll = false) ?: return false
 
         if (!file.exists()) {
-            MiscUtils.showErrorPopup("Error", "The file does not exist.")
+            MiscUtils.showMessageDialog("Error", "The file does not exist.")
             return false
         }
 
         if (file.isDirectory) {
-            MiscUtils.showErrorPopup("Error", "The file is a directory.")
+            MiscUtils.showMessageDialog("Error", "The file is a directory.")
             return false
         }
 
@@ -106,7 +91,7 @@ class Image : Element() {
             setImage(file)
             true
         } catch (e: Exception) {
-            MiscUtils.showErrorPopup("Error", "Exception occurred while opening the image: ${e.message}")
+            MiscUtils.showMessageDialog("Error", "Exception occurred while opening the image: ${e.message}")
             false
         }
     }
