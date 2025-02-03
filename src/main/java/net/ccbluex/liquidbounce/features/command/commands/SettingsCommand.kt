@@ -10,20 +10,22 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import net.ccbluex.liquidbounce.LiquidBounce
-import net.ccbluex.liquidbounce.api.*
+import net.ccbluex.liquidbounce.api.ClientApi
+import net.ccbluex.liquidbounce.api.Status
+import net.ccbluex.liquidbounce.api.autoSettingsList
+import net.ccbluex.liquidbounce.api.loadSettings
 import net.ccbluex.liquidbounce.config.SettingsUtils
 import net.ccbluex.liquidbounce.features.command.Command
 import net.ccbluex.liquidbounce.ui.client.hud.HUD.addNotification
 import net.ccbluex.liquidbounce.ui.client.hud.element.elements.Notification
 import net.ccbluex.liquidbounce.utils.client.ClientUtils.LOGGER
 import net.ccbluex.liquidbounce.utils.io.HttpUtils.get
+import net.ccbluex.liquidbounce.utils.io.MiscUtils
 import net.ccbluex.liquidbounce.utils.kotlin.SharedScopes
 import net.ccbluex.liquidbounce.utils.kotlin.StringUtils
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 
 object SettingsCommand : Command("autosettings", "autosetting", "settings", "setting", "config") {
 
@@ -80,7 +82,7 @@ object SettingsCommand : Command("autosettings", "autosetting", "settings", "set
             chat("Applying settings...")
             SettingsUtils.applyScript(settings)
             chat("§6Settings applied successfully")
-            addNotification(Notification("Updated Settings"))
+            addNotification(Notification("Settings Command", "Successfully updated settings!"))
             playEdit()
         } catch (e: Exception) {
             LOGGER.error("Failed to load settings", e)
@@ -146,8 +148,7 @@ object SettingsCommand : Command("autosettings", "autosetting", "settings", "set
                     chat("§9Token: §6${response.token}")
 
                     // Store token in clipboard
-                    val stringSelection = StringSelection(response.token)
-                    Toolkit.getDefaultToolkit().systemClipboard.setContents(stringSelection, stringSelection)
+                    MiscUtils.copy(response.token)
                 }
 
                 Status.ERROR -> chat("§c${response.message}")

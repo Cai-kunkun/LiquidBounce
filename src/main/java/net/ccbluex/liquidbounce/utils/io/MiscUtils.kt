@@ -6,6 +6,7 @@
 package net.ccbluex.liquidbounce.utils.io
 
 import net.ccbluex.liquidbounce.LiquidBounce
+import net.ccbluex.liquidbounce.file.FileManager
 import net.ccbluex.liquidbounce.utils.client.MinecraftInstance
 import java.awt.Desktop
 import java.awt.Font
@@ -22,6 +23,12 @@ import javax.swing.filechooser.FileFilter
 import javax.swing.filechooser.FileNameExtensionFilter
 
 object MiscUtils : MinecraftInstance {
+
+    @JvmStatic
+    fun copy(content: String) {
+        val selection = StringSelection(content)
+        Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
+    }
 
     @JvmStatic
     private fun JTextArea.adjustTextAreaSize() {
@@ -88,8 +95,7 @@ object MiscUtils : MinecraftInstance {
 
         val copyButton = JButton("Copy Text").apply {
             addActionListener {
-                val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-                clipboard.setContents(StringSelection(content), null)
+                copy(content)
                 JOptionPane.showMessageDialog(null, "Text copied to clipboard!", "Info", JOptionPane.INFORMATION_MESSAGE)
             }
         }
@@ -133,6 +139,7 @@ object MiscUtils : MinecraftInstance {
         if (mc.isFullScreen) mc.toggleFullscreen()
 
         val fileChooser = JFileChooser()
+        fileChooser.currentDirectory = FileManager.dir
         fileChooser.fileSelectionMode = JFileChooser.FILES_ONLY
         fileChooser.isAcceptAllFileFilterUsed = isAcceptAllFileFilterUsed || fileFilers.isEmpty()
         fileFilers.forEach(fileChooser::addChoosableFileFilter)

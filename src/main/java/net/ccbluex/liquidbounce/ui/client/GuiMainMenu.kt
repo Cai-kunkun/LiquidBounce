@@ -11,6 +11,7 @@ import net.ccbluex.liquidbounce.LiquidBounce.clientVersionText
 import net.ccbluex.liquidbounce.api.messageOfTheDay
 import net.ccbluex.liquidbounce.lang.translationMenu
 import net.ccbluex.liquidbounce.ui.client.altmanager.GuiAltManager
+import net.ccbluex.liquidbounce.ui.client.fontmanager.GuiFontManager
 import net.ccbluex.liquidbounce.ui.font.Fonts
 import net.ccbluex.liquidbounce.utils.io.MiscUtils
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.drawRoundedBorderRect
@@ -26,20 +27,24 @@ class GuiMainMenu : AbstractScreen() {
     override fun initGui() {
         val defaultHeight = height / 4 + 48
 
-        +GuiButton(100, width / 2 - 100, defaultHeight + 24, 98, 20, translationMenu("altManager"))
-        +GuiButton(103, width / 2 + 2, defaultHeight + 24, 98, 20, translationMenu("mods"))
-        +GuiButton(101, width / 2 - 100, defaultHeight + 24 * 2, 98, 20, translationMenu("serverStatus"))
-        +GuiButton(102, width / 2 + 2, defaultHeight + 24 * 2, 98, 20, translationMenu("configuration"))
+        val baseCol1 = width / 2 - 100
+        val baseCol2 = width / 2 + 2
+        
+        +GuiButton(100, baseCol1, defaultHeight + 24, 98, 20, translationMenu("altManager"))
+        +GuiButton(103, baseCol2, defaultHeight + 24, 98, 20, translationMenu("mods"))
+        +GuiButton(109, baseCol1, defaultHeight + 24 * 2, 98, 20, translationMenu("fontManager"))
+        +GuiButton(102, baseCol2, defaultHeight + 24 * 2, 98, 20, translationMenu("configuration"))
+        +GuiButton(101, baseCol1, defaultHeight + 24 * 3, 98, 20, translationMenu("serverStatus"))
+        +GuiButton(108, baseCol2, defaultHeight + 24 * 3, 98, 20, translationMenu("contributors"))
 
-        +GuiButton(1, width / 2 - 100, defaultHeight, 98, 20, I18n.format("menu.singleplayer"))
-        +GuiButton(2, width / 2 + 2, defaultHeight, 98, 20, I18n.format("menu.multiplayer"))
+        +GuiButton(1, baseCol1, defaultHeight, 98, 20, I18n.format("menu.singleplayer"))
+        +GuiButton(2, baseCol2, defaultHeight, 98, 20, I18n.format("menu.multiplayer"))
 
         // Minecraft Realms
-        //		this.buttonList.add(new GuiButton(14, this.width / 2 - 100, j + 24 * 2, I18n.format("menu.online", new Object[0])));
+        //        +GuiButton(14, this.baseCol1, j + 24 * 2, I18n.format("menu.online"))
 
-        +GuiButton(108, width / 2 - 100, defaultHeight + 24 * 3, translationMenu("contributors"))
-        +GuiButton(0, width / 2 - 100, defaultHeight + 24 * 4, 98, 20, I18n.format("menu.options"))
-        +GuiButton(4, width / 2 + 2, defaultHeight + 24 * 4, 98, 20, I18n.format("menu.quit"))
+        +GuiButton(0, baseCol1, defaultHeight + 24 * 4, 98, 20, I18n.format("menu.options"))
+        +GuiButton(4, baseCol2, defaultHeight + 24 * 4, 98, 20, I18n.format("menu.quit"))
     }
 
     override fun drawScreen(mouseX: Int, mouseY: Int, partialTicks: Float) {
@@ -54,10 +59,10 @@ class GuiMainMenu : AbstractScreen() {
         )
 
         Fonts.fontBold180.drawCenteredString(CLIENT_NAME, width / 2F, height / 8F, 4673984, true)
-        Fonts.font35.drawCenteredString(
+        Fonts.fontSemibold35.drawCenteredString(
             clientVersionText,
             width / 2F + 148,
-            height / 8F + Fonts.font35.fontHeight,
+            height / 8F + Fonts.fontSemibold35.fontHeight,
             0xffffff,
             true
         )
@@ -70,7 +75,7 @@ class GuiMainMenu : AbstractScreen() {
                 width / 2f - 115,
                 height / 4f + 190,
                 width / 2f + 115,
-                height / 4f + 200 + (Fonts.font35.fontHeight * lines.size),
+                height / 4f + 200 + (Fonts.fontSemibold35.fontHeight * lines.size),
                 2f,
                 Integer.MIN_VALUE,
                 Integer.MIN_VALUE,
@@ -79,9 +84,9 @@ class GuiMainMenu : AbstractScreen() {
 
             // Draw rect below main rect and within draw MOTD text
             for ((index, line) in lines.withIndex()) {
-                Fonts.font35.drawCenteredString(
+                Fonts.fontSemibold35.drawCenteredString(
                     line, width / 2F, height / 4f + 197.5f
-                            + (Fonts.font35.fontHeight * index), 0xffffff, true
+                            + (Fonts.fontSemibold35.fontHeight * index), 0xffffff, true
                 )
             }
         }
@@ -96,7 +101,7 @@ class GuiMainMenu : AbstractScreen() {
             val lines = messageOfTheDay.lines()
             val motdHeight = height / 4f + 198
             val motdWidth = width / 2f - 115
-            val motdHeightEnd = motdHeight + 2 + (Fonts.font35.fontHeight * lines.size)
+            val motdHeightEnd = motdHeight + 2 + (Fonts.fontSemibold35.fontHeight * lines.size)
 
             if (mouseX >= motdWidth && mouseX <= width / 2f + 115 && mouseY >= motdHeight && mouseY <= motdHeightEnd) {
                 // Open liquidbounce website
@@ -118,6 +123,7 @@ class GuiMainMenu : AbstractScreen() {
             102 -> mc.displayGuiScreen(GuiClientConfiguration(this))
             103 -> mc.displayGuiScreen(GuiModsMenu(this))
             108 -> mc.displayGuiScreen(GuiContributors(this))
+            109 -> mc.displayGuiScreen(GuiFontManager(this))
         }
     }
 }
